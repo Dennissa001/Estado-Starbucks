@@ -1,5 +1,5 @@
 import streamlit as st
-from utils import load_data, load_users, authenticate, add_employee_entry, filter_data, compute_kpis, get_alerts, generate_csv_report_by_sede
+from utils import load_data, save_data, filter_data, generar_alertas
 from datetime import datetime
 
 st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
@@ -167,3 +167,4 @@ else:
     if page == "Tendencias" and user["role"] == "admin":
         st.title("Tendencias del Bienestar")
         st.pyplot(kpis["fig_dept"])
+
