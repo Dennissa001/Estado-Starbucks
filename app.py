@@ -29,13 +29,14 @@ def login_view():
     with col1:
         username = st.text_input("Usuario")
         password = st.text_input("Contraseña", type="password")
+
     with col2:
         if st.button("Ingresar"):
             user = authenticate(username, password, users)
             if user:
                 st.session_state.user = user
                 st.session_state.logged = True
-                st.experimental_rerun()
+                st.rerun()   # <-- CORREGIDO
             else:
                 st.error("Usuario o contraseña incorrectos")
 
@@ -46,14 +47,13 @@ def login_view():
 def logout():
     st.session_state.user = None
     st.session_state.logged = False
-    st.experimental_rerun()
+    st.rerun()   # <-- CORREGIDO
 
 # ------ Empleado view ------
 def employee_view(user):
     st.header("Registro de turno — Empleado")
     st.write(f"Sede detectada: **{user.get('sede','(no definida)')}**")
 
-    # editable times
     hora_inicio = st.time_input("Hora de inicio", value=datetime.now().time(), key="hi")
     hora_salida = st.time_input("Hora de salida", value=datetime.now().time(), key="hs")
 
@@ -86,6 +86,7 @@ def employee_view(user):
 def admin_view(user):
     st.header("Panel administrador — Bienestar y cumplimiento")
     data = load_data(DATA_PATH)
+
     if not data:
         st.warning("No hay registros todavía.")
         if st.button("Cerrar sesión"):
@@ -101,7 +102,7 @@ def admin_view(user):
 
     filtered = filter_data(data, fecha=str(fecha_filtro), sede=sede_filter)
 
-    # KPIs y gráficas
+    # KPIs
     kpis = compute_kpis(filtered)
 
     c1, c2, c3 = st.columns(3)
@@ -111,16 +112,16 @@ def admin_view(user):
 
     st.markdown("---")
 
-    # Tabla con registros filtrados
+    # Tabla
     if filtered:
         df = pd.DataFrame(filtered)
         st.subheader("Registros")
         st.dataframe(df)
-        # alertas detalladas
-        st.subheader("Alertas detectadas (detalladas)")
+
+        st.subheader("Alertas detectadas")
         alerts = get_alerts(filtered)
         if not alerts:
-            st.success("No hay alertas para estos filtros 🎉")
+            st.success("No hay alertas 🎉")
         else:
             for a in alerts:
                 st.warning(f"{a.get('nombre')}: {a.get('motivo')}")
@@ -128,21 +129,28 @@ def admin_view(user):
         st.info("No hay registros para los filtros seleccionados.")
 
     st.markdown("---")
-    # gráficos
+
+    # Gráficos
     if kpis.get("fig_bar_estr") is not None:
         st.subheader("Estrés por sede")
         st.pyplot(kpis["fig_bar_estr"])
+
     if kpis.get("fig_trend") is not None:
         st.subheader("Tendencia del estrés")
         st.pyplot(kpis["fig_trend"])
 
-    # Reportes por sede
+    # Reportes
     st.subheader("Exportar reportes por sede")
     sedes_disponibles = sorted(list({d.get("sede","") for d in data}))
     for s in sedes_disponibles:
         if st.button(f"Generar CSV - {s}"):
             out = generate_csv_report_by_sede(data, s)
-            st.download_button(label=f"Descargar {s}", data=out, file_name=f"reporte_{s}.csv", mime="text/csv")
+            st.download_button(
+                label=f"Descargar {s}",
+                data=out,
+                file_name=f"reporte_{s}.csv",
+                mime="text/csv"
+            )
 
     if st.sidebar.button("Cerrar sesión"):
         logout()
