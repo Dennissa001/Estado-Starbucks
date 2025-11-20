@@ -1,9 +1,17 @@
+# app.py
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, time
+import pandas as pd
+
 from utils import (
-    load_data, save_data, filter_data, load_users,
-    authenticate, add_employee_entry,
-    compute_kpis, get_alerts,
+    load_data,
+    save_data,
+    load_users,
+    authenticate,
+    add_employee_entry,
+    filter_data,
+    compute_kpis,
+    get_alerts,
     generate_csv_report_by_sede
 )
 
@@ -12,20 +20,20 @@ st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
 DATA_PATH = "data.json"
 USERS_PATH = "users.json"
 
-
-# ------------------------------
-# LOGIN
-# ------------------------------
-
-st.title("Bienestar Starbucks - Iniciar Sesión")
-
-users = load_users(USERS_PATH)
-
-if "login" not in st.session_state:
-    st.session_state.login = False
+# -------------------------
+# Sesión y estado inicial
+# -------------------------
+if "user" not in st.session_state:
     st.session_state.user = None
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-if not st.session_state.login:
+# -------------------------
+# Pantalla de login
+# -------------------------
+def login_view():
+    st.title("Bienestar Starbucks — Iniciar sesión")
+    users = load_users(USERS_PATH)
 
     username = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
@@ -33,124 +41,164 @@ if not st.session_state.login:
     if st.button("Ingresar"):
         user = authenticate(username, password, users)
         if user:
-            st.session_state.login = True
+            # asegurar keys mínimas
+            if "nombre" not in user:
+                user["nombre"] = user.get("username", username)
+            if "sede" not in user:
+                user["sede"] = user.get("sede", "")
             st.session_state.user = user
-            st.rerun()
+            st.session_state.logged_in = True
+            st.experimental_rerun()
         else:
-            st.error("Credenciales incorrectas")
+            st.error("Usuario o contraseña incorrectos")
 
-else:
-    user = st.session_state.user
+    st.markdown("---")
+    st.info("Si no tienes cuenta de administrador, puedes ingresar con un usuario empleado definido en users.json.")
 
-    # SIDEBAR
-    st.sidebar.title(f"Hola, {user['username']} ({user['role']})")
+# -------------------------
+# Cerrar sesión
+# -------------------------
+def logout():
+    st.session_state.user = None
+    st.session_state.logged_in = False
+    st.experimental_rerun()
 
-    if st.sidebar.button("Cerrar sesión"):
-        st.session_state.login = False
-        st.session_state.user = None
-        st.rerun()
+# -------------------------
+# Vista: registro empleado
+# -------------------------
+def view_employee(user):
+    st.header("Registro de turno — Empleado")
+    st.markdown("Registra aquí tu turno y sensación del día. La sede se asocia automáticamente a tu usuario.")
 
-    # Opciones según rol
-    pages = ["Registro Empleado"]
-    if user["role"] == "admin":
-        pages += ["Dashboard", "Alertas", "Reportes"]
+    # Horas editables por el empleado (manual)
+    hora_inicio = st.time_input("Hora de ingreso", value=datetime.now().time(), key="hi")
+    hora_salida = st.time_input("Hora de salida", value=datetime.now().time(), key="hs")
 
-    page = st.sidebar.selectbox("Ir a:", pages)
-
-    # Cargar datos
-    data = load_data(DATA_PATH)
-    fecha_hoy = str(datetime.today().date())
-
-    if user["role"] == "empleado":
-        sede_filtrada = user["sede"]
-    else:
-        sedes = ["Todas"] + sorted(list({d.get("sede", "") for d in data}))
-        sede_sel = st.sidebar.selectbox("Sede:", sedes)
-        sede_filtrada = None if sede_sel == "Todas" else sede_sel
-
-    filtrado = filter_data(data, fecha_hoy, sede_filtrada)
-
-    # ------------------------------
-    # EMPLEADO
-    # ------------------------------
-    if page == "Registro Empleado":
-        st.header("Registro del Empleado")
-
-        hora_inicio = st.time_input("Hora de inicio:", datetime.now().time())
-        hora_salida = st.time_input("Hora de salida:", datetime.now().time())
-
-        descanso_si = st.radio("¿Cumpliste tu descanso?", ["Sí", "No"])
-        descanso = descanso_si == "Sí"
-
-        motivo = ""
-        if not descanso:
-            motivo = st.selectbox("Motivo:", [
-                "Alta demanda de clientes", "No quiso",
-                "Falta de personal", "Otro"
-            ])
-
-        estres = st.slider("Nivel de estrés (0-10)", 0, 10, 5)
-
-        estado = st.selectbox("¿Cómo te sientes?", [
-            "Feliz 😊", "Tranquilo 😌", "Normal 😐",
-            "Estresado 😣", "Agotado 😫"
+    # Descanso + motivo si no cumplió
+    descanso_ok = st.radio("¿Cumpliste tu descanso?", ["Sí", "No"]) == "Sí"
+    motivo_descanso = ""
+    if not descanso_ok:
+        motivo_descanso = st.selectbox("Motivo del descanso no cumplido", [
+            "Alta demanda de clientes", "No quiso", "Falta de personal", "Otro"
         ])
 
-        if st.button("Registrar"):
-            add_employee_entry(
-                DATA_PATH, user,
-                hora_inicio, hora_salida,
-                descanso, motivo,
-                estres, estado
-            )
-            st.success("Registro guardado correctamente ✔")
+    # Nivel de estrés y estado emocional con opciones
+    estres = st.slider("Nivel de estrés (0-10)", 0, 10, 5)
+    estado_emocional = st.selectbox("¿Cómo te sientes hoy?", [
+        "Feliz 😊", "Tranquilo 😌", "Normal 😐", "Estresado 😣", "Agotado 😫"
+    ])
 
-    # ------------------------------
-    # DASHBOARD ADMIN
-    # ------------------------------
-    if page == "Dashboard" and user["role"] == "admin":
+    comentario = st.text_area("Opcional: añade algún comentario o detalle (opcional)")
 
-        st.header("Dashboard de Bienestar")
+    if st.button("Registrar testimonio"):
+        # Llamada a util que guarda el registro
+        add_employee_entry(
+            DATA_PATH,
+            user,
+            hora_inicio,
+            hora_salida,
+            descanso_ok,
+            motivo_descanso,
+            estres,
+            estado_emocional if comentario == "" else comentario  # prefer comment if provided
+        )
+        st.success("Registro guardado. Gracias por compartir tu experiencia 💚")
 
-        kpis = compute_kpis(filtrado)
+# -------------------------
+# Vista: administrador
+# -------------------------
+def view_admin(user):
+    st.header("Panel administrador — Bienestar y cumplimiento")
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Estrés promedio", f"{kpis['estres_promedio']:.1f}")
-        c2.metric("% Descanso", f"{kpis['pct_descanso']:.1f}%")
-        c3.metric("Alertas", kpis["alertas_count"])
+    data = load_data(DATA_PATH)
+    if not data:
+        st.warning("No hay registros aún.")
+        # show logout
+        if st.button("Cerrar sesión"):
+            logout()
+        return
 
-        st.subheader("Estrés por sede")
-        st.pyplot(kpis["fig_bar"])
+    # filtros de fecha y sede
+    fecha_filtro = st.sidebar.date_input("Filtrar por fecha", value=datetime.today().date())
+    sedes = sorted(list({d.get("sede", "Sin sede") for d in data}))
+    sedes = ["Todas"] + sedes
+    sede_sel = st.sidebar.selectbox("Filtrar por sede", sedes)
+    sede_filter = None if sede_sel == "Todas" else sede_sel
 
-    # ------------------------------
-    # ALERTAS
-    # ------------------------------
-    if page == "Alertas" and user["role"] == "admin":
-        st.header("Alertas detectadas")
+    # aplicar filtro seguro mediante util
+    filtered = filter_data(data, fecha=str(fecha_filtro), sede=sede_filter)
 
-        alerts = get_alerts(filtrado)
+    # métricas y gráficos via util
+    kpis = compute_kpis(filtered)
 
+    # Mostrar KPIs
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Estrés promedio", f"{kpis.get('estres_promedio', 0):.1f}")
+    col2.metric("% descanso cumplido", f"{kpis.get('pct_descanso', 0):.1f}%")
+    col3.metric("Alertas detectadas", kpis.get('alertas_count', 0))
+
+    st.markdown("---")
+
+    # Tabla de registros filtrados (si existen)
+    if filtered:
+        df_show = pd.DataFrame(filtered)
+        # generar alertas detalladas usando get_alerts (util)
+        alerts = get_alerts(filtered)
+        st.subheader("Registros (filtrados)")
+        st.dataframe(df_show)
+
+        # Mostrar alertas individuales
+        st.subheader("Alertas detectadas")
         if not alerts:
-            st.success("Sin alertas 🎉")
+            st.success("No se detectaron alertas para estos filtros 🎉")
         else:
             for a in alerts:
-                st.warning(f"⚠ {a['nombre']}: {a['motivo']}")
+                st.warning(f"{a.get('nombre', 'Empleado')}: {a.get('motivo')}")
 
-    # ------------------------------
-    # REPORTES
-    # ------------------------------
-    if page == "Reportes" and user["role"] == "admin":
+    else:
+        st.info("No hay registros para los filtros seleccionados.")
 
-        st.header("Reportes por sede")
+    st.markdown("---")
+    # Gráfico (si util devolvió figura)
+    fig = kpis.get("fig_bar_estr") or kpis.get("fig_bar") or kpis.get("fig_dept")
+    if fig is not None:
+        st.subheader("Gráfico de estrés por sede / tendencia")
+        st.pyplot(fig)
 
-        sedes_disponibles = sorted(list({d.get("sede", "") for d in data}))
+    # REPORTES: generar por sede y descargar
+    st.subheader("Exportar reportes por sede")
+    sedes_disponibles = sorted(list({d.get("sede", "") for d in data}))
+    for s in sedes_disponibles:
+        if st.button(f"Generar CSV - {s}"):
+            csv_bytes = generate_csv_report_by_sede(data, s)
+            # generate_csv_report_by_sede puede devolver bytes o str; acomodamos
+            if isinstance(csv_bytes, str):
+                csv_bytes = csv_bytes.encode("utf-8")
+            st.download_button(label=f"Descargar {s}", data=csv_bytes, file_name=f"reporte_{s}.csv", mime="text/csv")
 
-        for s in sedes_disponibles:
-            if st.button(f"Generar reporte de {s}"):
-                out = generate_csv_report_by_sede(data, s)
-                st.download_button(
-                    label=f"Descargar {s}",
-                    data=out,
-                    file_name=f"reporte_{s}.csv",
-                    mime="text/csv"
-                )
+    # Logout
+    if st.sidebar.button("Cerrar sesión"):
+        logout()
+
+# -------------------------
+# Programa principal
+# -------------------------
+def main():
+    if not st.session_state.logged_in:
+        login_view()
+    else:
+        user = st.session_state.user
+        # asegurar claves mínimas
+        user.setdefault("username", user.get("username", "unknown"))
+        user.setdefault("nombre", user.get("nombre", user.get("username")))
+        user.setdefault("sede", user.get("sede", ""))
+
+        # menú por rol
+        if user.get("role") == "admin":
+            view_admin(user)
+        else:
+            view_employee(user)
+
+# Ejecutar
+if __name__ == "__main__":
+    main()
