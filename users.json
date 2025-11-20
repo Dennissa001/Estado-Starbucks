@@ -1,7 +1,37 @@
 [
-  {"username": "admin", "password": "1234", "role": "admin", "sede": "Todas", "nombre": "Administrador"},
-  {"username": "carlos", "password": "abcd", "role": "empleado", "sede": "Miraflores", "nombre": "Carlos Pérez"},
-  {"username": "maria", "password": "abcd", "role": "empleado", "sede": "San Isidro", "nombre": "María López"},
-  {"username": "andres", "password": "abcd", "role": "empleado", "sede": "Surco", "nombre": "Andrés García"}
+  {
+    "username": "admin",
+    "password": "admin123",
+    "role": "admin",
+    "nombre": "Administrador",
+    "sede": "Miraflores"
+  },
+  {
+    "username": "andrea",
+    "password": "1234",
+    "role": "empleado",
+    "nombre": "Andrea",
+    "sede": "Miraflores"
+  },
+  {
+    "username": "carlos",
+    "password": "1234",
+    "role": "empleado",
+    "nombre": "Carlos",
+    "sede": "San Isidro"
+  },
+  {
+    "username": "maria",
+    "password": "1234",
+    "role": "empleado",
+    "nombre": "María",
+    "sede": "La Molina"
+  },
+  {
+    "username": "jose",
+    "password": "1234",
+    "role": "empleado",
+    "nombre": "José",
+    "sede": "Barranco"
+  }
 ]
-
