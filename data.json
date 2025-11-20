@@ -50,19 +50,23 @@
     "fecha": "2025-11-19"
   },
   {
-    "id": 6,
-    "nombre": "Valeria Medina",
-    "sede": "Surco",
-    "hora_inicio": "09:00:00",
-    "hora_salida": "17:00:00",
-    "descanso_cumplido": true,
-    "estres": 2,
-    "fecha": "2025-11-19"
-  },
-  {
     "id": 7,
     "nombre": "Diego Rojas",
     "sede": "Miraflores",
     "hora_inicio": "07:45:00",
     "hora_salida": "16:45:00",
-    "
+    "descanso_cumplido": true,
+    "estres": 6,
+    "fecha": "2025-11-19"
+  },
+  {
+    "id": 8,
+    "nombre": "Camila Vargas",
+    "sede": "San Isidro",
+    "hora_inicio": "08:30:00",
+    "hora_salida": "17:30:00",
+    "descanso_cumplido": false,
+    "estres": 9,
+    "fecha": "2025-11-19"
+  }
+]
