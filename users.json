@@ -1,0 +1,6 @@
+[
+  {"username": "admin", "password": "1234", "role": "admin", "sede": "Todas"},
+  {"username": "carlos", "password": "abcd", "role": "empleado", "sede": "Miraflores"},
+  {"username": "maria", "password": "abcd", "role": "empleado", "sede": "San Isidro"},
+  {"username": "andres", "password": "abcd", "role": "empleado", "sede": "Surco"}
+]
