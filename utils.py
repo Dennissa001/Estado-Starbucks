@@ -1,129 +1,89 @@
-import streamlit as st
+import json
+import os
 import pandas as pd
 from datetime import datetime
-from utils import load_data, save_data, filter_data, generar_alertas
-
-st.set_page_config(page_title="Estado Starbucks", page_icon="☕")
-
-# ----------------------------
-# Manejo de sesión
-# ----------------------------
-if "user" not in st.session_state:
-    st.session_state.user = None
 
 
-# ----------------------------
-# LOGIN
-# ----------------------------
-def login():
-    st.title("☕ Starbucks - Bienestar Laboral")
+# ----------------------------------------
+# Cargar y guardar datos
+# ----------------------------------------
 
-    usuario = st.text_input("Usuario:")
-    password = st.text_input("Contraseña:", type="password")
+DATA_FILE = "data.json"
 
-    if st.button("Ingresar"):
-        if usuario == "admin" and password == "admin123":
-            st.session_state.user = "admin"
-        else:
-            st.session_state.user = usuario  # empleado cualquiera
-        st.rerun()
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return []
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except:
+            return []
 
-
-# ----------------------------
-# CERRAR SESIÓN
-# ----------------------------
-def cerrar_sesion():
-    if st.button("Cerrar sesión"):
-        st.session_state.user = None
-        st.rerun()
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 
-# ----------------------------
-# VISTA EMPLEADO
-# ----------------------------
-def vista_empleado():
-    st.header("Registro de Estado - Empleado")
+# ----------------------------------------
+# Filtro seguro (evita KeyError)
+# ----------------------------------------
 
-    fecha = st.date_input("Fecha")
-    sede = st.selectbox("Sede", ["Larcomar", "San Miguel", "Jockey", "Miraflores"])
-
-    # ➤ EDICIÓN manual de horas
-    hora_ingreso = st.text_input("Hora de ingreso (HH:MM)", placeholder="08:00")
-    hora_salida = st.text_input("Hora de salida (HH:MM)", placeholder="17:00")
-
-    # ➤ Estado emocional con opciones
-    estado = st.selectbox("¿Cómo te sientes hoy?", [
-        "Feliz", "Neutral", "Cansado", "Estresado", "Triste", "Ansioso"
-    ])
-
-    testimonio = st.text_area("Describe tu día laboral:")
-
-    if st.button("Guardar registro"):
-        data = load_data()
-
-        data.append({
-            "usuario": st.session_state.user,
-            "fecha": str(fecha),
-            "sede": sede,
-            "hora_ingreso": hora_ingreso,
-            "hora_salida": hora_salida,
-            "estado": estado,
-            "testimonio": testimonio
-        })
-
-        save_data(data)
-        st.success("Registro guardado correctamente 💚")
-
-    cerrar_sesion()
-
-
-# ----------------------------
-# VISTA ADMIN
-# ----------------------------
-def vista_admin():
-    st.title("📊 Panel Administrador - Starbucks")
-
-    data = load_data()
-
-    if not data:
-        st.warning("No hay datos registrados aún.")
-        cerrar_sesion()
-        return
-
+def filter_data(data, fecha=None, sede=None):
     df = pd.DataFrame(data)
 
-    # Filtros
-    fecha = st.date_input("Filtrar por fecha", value=None)
-    sede = st.selectbox("Filtrar por sede", ["", "Larcomar", "San Miguel", "Jockey", "Miraflores"])
+    if df.empty:
+        return []
 
-    filtered = filter_data(data, fecha=str(fecha) if fecha else None, sede=sede if sede else None)
-    df_filtered = pd.DataFrame(filtered)
+    if 'fecha' in df.columns and fecha:
+        df = df[df['fecha'] == str(fecha)]
 
-    # Generar alertas
-    df_filtered = generar_alertas(df_filtered)
+    if 'sede' in df.columns and sede:
+        df = df[df['sede'] == sede]
 
-    st.subheader("Registros de empleados")
-    st.dataframe(df_filtered)
-
-    # -------------------------
-    # Gráfico (estado emocional)
-    # -------------------------
-    st.subheader("Gráfico de estados emocionales")
-
-    if "estado" in df.columns:
-        conteo = df["estado"].value_counts()
-        st.bar_chart(conteo)
-
-    cerrar_sesion()
+    return df.to_dict(orient='records')
 
 
-# ----------------------------
-# CONTROL PRINCIPAL
-# ----------------------------
+# ----------------------------------------
+# ALERTAS PRO
+# ----------------------------------------
 
-if st.session_state.user is None:
-    login()
-elif st.session_state.user == "admin":
-    vista_admin()
-else:
-    vista_empleado()
+def generar_alertas(df):
+    if df.empty:
+        return df
+
+    alertas_totales = []
+
+    for _, row in df.iterrows():
+        alertas = []
+
+        # 1. Salida no registrada
+        if row.get("hora_salida") in ["", None, "null"]:
+            alertas.append("Salida no registrada")
+
+        # 2. Cálculo de horas trabajadas
+        try:
+            h_in = datetime.strptime(row["hora_ingreso"], "%H:%M")
+            h_out = datetime.strptime(row["hora_salida"], "%H:%M")
+            horas = (h_out - h_in).seconds / 3600
+            if horas > 8:
+                alertas.append("Exceso de jornada (>8h)")
+        except:
+            pass
+
+        # 3. Estado emocional crítico
+        estado = str(row.get("estado", "")).lower()
+        if estado in ["triste", "estresado", "ansioso", "mal"]:
+            alertas.append("Estado emocional crítico")
+
+        # 4. Ingreso tarde
+        try:
+            h_in = datetime.strptime(row["hora_ingreso"], "%H:%M")
+            if h_in.hour >= 10:
+                alertas.append("Ingreso tardío")
+        except:
+            pass
+
+        alertas_totales.append(alertas)
+
+    df["alertas"] = alertas_totales
+    return df
