@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": 1,
+    "nombre": "carlos",
+    "sede": "Miraflores",
+    "hora_inicio": "08:00:00",
+    "hora_salida": "17:00:00",
+    "descanso_cumplido": true,
+    "motivo_descanso": "",
+    "estres": 5,
+    "comentario": "Me sentí bien",
+    "fecha": "2025-11-19"
+  }
+]
