@@ -1,2 +1,25 @@
-[]
+[
+  {"sede": "Miraflores", "fecha": "2025-01-20", "nombre": "Andrea", "hora_inicio": "08:00", "hora_salida": "17:00", "descanso": "45", "estres": 4, "estado_emocional": "Tranquilo"},
+  {"sede": "Miraflores", "fecha": "2025-01-21", "nombre": "Andrea", "hora_inicio": "08:00", "hora_salida": "17:00", "descanso": "45", "estres": 5, "estado_emocional": "Normal"},
+  {"sede": "Miraflores", "fecha": "2025-01-22", "nombre": "Andrea", "hora_inicio": "08:00", "hora_salida": "17:00", "descanso": "40", "estres": 7, "estado_emocional": "Estresado"},
+  {"sede": "Miraflores", "fecha": "2025-01-23", "nombre": "Andrea", "hora_inicio": "08:00", "hora_salida": "17:00", "descanso": "30", "estres": 8, "estado_emocional": "Agotado"},
+  {"sede": "Miraflores", "fecha": "2025-01-24", "nombre": "Andrea", "hora_inicio": "08:00", "hora_salida": "17:00", "descanso": "45", "estres": 6, "estado_emocional": "Normal"},
 
+  {"sede": "San Isidro", "fecha": "2025-01-20", "nombre": "Carlos", "hora_inicio": "09:00", "hora_salida": "18:00", "descanso": "50", "estres": 3, "estado_emocional": "Tranquilo"},
+  {"sede": "San Isidro", "fecha": "2025-01-21", "nombre": "Carlos", "hora_inicio": "09:00", "hora_salida": "18:00", "descanso": "45", "estres": 4, "estado_emocional": "Feliz"},
+  {"sede": "San Isidro", "fecha": "2025-01-22", "nombre": "Carlos", "hora_inicio": "09:00", "hora_salida": "18:00", "descanso": "30", "estres": 6, "estado_emocional": "Normal"},
+  {"sede": "San Isidro", "fecha": "2025-01-23", "nombre": "Carlos", "hora_inicio": "09:00", "hora_salida": "18:00", "descanso": "45", "estres": 7, "estado_emocional": "Estresado"},
+  {"sede": "San Isidro", "fecha": "2025-01-24", "nombre": "Carlos", "hora_inicio": "09:00", "hora_salida": "18:00", "descanso": "60", "estres": 5, "estado_emocional": "Tranquilo"},
+
+  {"sede": "La Molina", "fecha": "2025-01-20", "nombre": "María", "hora_inicio": "07:00", "hora_salida": "16:00", "descanso": "45", "estres": 5, "estado_emocional": "Normal"},
+  {"sede": "La Molina", "fecha": "2025-01-21", "nombre": "María", "hora_inicio": "07:00", "hora_salida": "16:00", "descanso": "50", "estres": 4, "estado_emocional": "Feliz"},
+  {"sede": "La Molina", "fecha": "2025-01-22", "nombre": "María", "hora_inicio": "07:00", "hora_salida": "16:00", "descanso": "45", "estres": 6, "estado_emocional": "Normal"},
+  {"sede": "La Molina", "fecha": "2025-01-23", "nombre": "María", "hora_inicio": "07:00", "hora_salida": "16:00", "descanso": "40", "estres": 7, "estado_emocional": "Estresado"},
+  {"sede": "La Molina", "fecha": "2025-01-24", "nombre": "María", "hora_inicio": "07:00", "hora_salida": "16:00", "descanso": "45", "estres": 5, "estado_emocional": "Normal"},
+
+  {"sede": "Barranco", "fecha": "2025-01-20", "nombre": "José", "hora_inicio": "10:00", "hora_salida": "19:00", "descanso": "45", "estres": 2, "estado_emocional": "Feliz"},
+  {"sede": "Barranco", "fecha": "2025-01-21", "nombre": "José", "hora_inicio": "10:00", "hora_salida": "19:00", "descanso": "35", "estres": 5, "estado_emocional": "Normal"},
+  {"sede": "Barranco", "fecha": "2025-01-22", "nombre": "José", "hora_inicio": "10:00", "hora_salida": "19:00", "descanso": "45", "estres": 6, "estado_emocional": "Tranquilo"},
+  {"sede": "Barranco", "fecha": "2025-01-23", "nombre": "José", "hora_inicio": "10:00", "hora_salida": "19:00", "descanso": "50", "estres": 7, "estado_emocional": "Estresado"},
+  {"sede": "Barranco", "fecha": "2025-01-24", "nombre": "José", "hora_inicio": "10:00", "hora_salida": "19:00", "descanso": "45", "estres": 6, "estado_emocional": "Agotado"}
+]
