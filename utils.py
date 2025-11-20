@@ -2,10 +2,10 @@ import json
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
+from io import StringIO
 
-# ------------------------------------------------------------
-# LOAD / SAVE
-# ------------------------------------------------------------
+
+# ---- Cargar y guardar ----
 def load_data(path):
     try:
         with open(path, "r") as f:
@@ -13,144 +13,137 @@ def load_data(path):
     except:
         return []
 
+
 def save_data(path, data):
     with open(path, "w") as f:
         json.dump(data, f, indent=4)
 
-def load_users(path):
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except:
-        return []
 
-# ------------------------------------------------------------
-# AUTH
-# ------------------------------------------------------------
+def load_users(path):
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+# ---- Login ----
 def authenticate(username, password, users):
     for u in users:
         if u["username"] == username and u["password"] == password:
             return u
     return None
 
-# ------------------------------------------------------------
-# ADD ENTRY
-# ------------------------------------------------------------
-def add_employee_entry(path, user, fecha, h_in, h_out, descanso, estres, estado):
+
+# ---- Registro empleado ----
+def add_employee_entry(path, user, hi, hs, descanso, motivo, estres, estado, comentario):
     data = load_data(path)
-    data.append({
+
+    entry = {
+        "nombre": user["username"],
         "sede": user["sede"],
-        "fecha": fecha,
-        "nombre": user["nombre"],
-        "hora_inicio": h_in,
-        "hora_salida": h_out,
+        "fecha": str(datetime.now().date()),
+        "hora_inicio": hi.strftime("%H:%M"),
+        "hora_salida": hs.strftime("%H:%M"),
         "descanso": descanso,
+        "motivo": motivo if not descanso else "",
         "estres": estres,
-        "estado_emocional": estado
-    })
+        "estado": estado,
+        "comentario": comentario
+    }
+
+    data.append(entry)
     save_data(path, data)
 
-# ------------------------------------------------------------
-# FILTERS
-# ------------------------------------------------------------
-def filter_data(data, fecha=None, sede=None):
-    result = data
-    if fecha:
-        result = [d for d in result if d["fecha"] == fecha]
-    if sede:
-        result = [d for d in result if d["sede"] == sede]
-    return result
 
-# ------------------------------------------------------------
-# KPIs
-# ------------------------------------------------------------
+# ---- Filtros ----
+def filter_data(data, fecha=None, sede=None):
+    f = data
+    if fecha:
+        f = [d for d in f if d["fecha"] == fecha]
+    if sede:
+        f = [d for d in f if d["sede"] == sede]
+    return f
+
+
+# ---- KPIs ----
 def compute_kpis(data):
     if not data:
-        return {"estres_promedio": 0, "pct_descanso": 0, "alertas_count": 0}
+        return {
+            "estres_promedio": 0,
+            "pct_descanso": 0,
+            "alertas_count": 0,
+            "pie_estado": None,
+            "fig_semana": None
+        }
 
     df = pd.DataFrame(data)
 
     estres_prom = df["estres"].mean()
+    pct_descanso = (df["descanso"].mean()) * 100
 
-    pct_desc = len(df[df["descanso"].astype(int) >= 45]) / len(df) * 100
+    # ---- Alertas ----
+    alertas = df[(df["estres"] >= 8) | (df["descanso"] == False)]
 
-    alertas = get_alerts(data)
+    # ---- Pie chart ----
+    fig_pie = None
+    try:
+        fig_pie, ax = plt.subplots()
+        df["estado"].value_counts().plot.pie(autopct="%1.1f%%", ax=ax)
+        ax.set_ylabel("")
+    except:
+        fig_pie = None
+
+    # ---- Tendencia semanal ----
+    fig_semana = None
+    try:
+        df["fecha"] = pd.to_datetime(df["fecha"])
+        df["semana"] = df["fecha"].dt.isocalendar().week
+        sem = df.groupby("semana")["estres"].mean()
+
+        fig_semana, ax = plt.subplots()
+        sem.plot(kind="bar", ax=ax)
+        ax.set_title("Estrés promedio por semana")
+        ax.set_ylabel("Estrés")
+        ax.set_xlabel("Semana")
+    except:
+        fig_semana = None
 
     return {
         "estres_promedio": estres_prom,
-        "pct_descanso": pct_desc,
-        "alertas_count": len(alertas)
+        "pct_descanso": pct_descanso,
+        "alertas_count": len(alertas),
+        "pie_estado": fig_pie,
+        "fig_semana": fig_semana
     }
 
-# ------------------------------------------------------------
-# ALERTAS ORDENADAS
-# ------------------------------------------------------------
+
+# ---- Alertas detalladas ----
 def get_alerts(data):
-    df = pd.DataFrame(data)
-    if df.empty:
-        return []
-
-    df = df.sort_values(["sede", "fecha", "nombre"])
-
-    alertas = []
-
-    for _, row in df.iterrows():
-
-        if int(row["estres"]) >= 7:
-            alertas.append({
-                "sede": row["sede"],
-                "nombre": row["nombre"],
-                "motivo": "Estrés alto",
-                "estres": row["estres"],
-                "fecha": row["fecha"]
+    alerts = []
+    for d in data:
+        if d["estres"] >= 8:
+            alerts.append({
+                "nombre": d["nombre"],
+                "sede": d["sede"],
+                "fecha": d["fecha"],
+                "estres": d["estres"],
+                "motivo": "Alto estrés (≥ 8)"
             })
-
-        if row["estado_emocional"] in ["Estresado", "Agotado"]:
-            alertas.append({
-                "sede": row["sede"],
-                "nombre": row["nombre"],
-                "motivo": f"Estado emocional: {row['estado_emocional']}",
-                "estres": row["estres"],
-                "fecha": row["fecha"]
+        if not d["descanso"]:
+            alerts.append({
+                "nombre": d["nombre"],
+                "sede": d["sede"],
+                "fecha": d["fecha"],
+                "estres": d["estres"],
+                "motivo": "No cumplió descanso"
             })
+    return alerts
 
-    return alertas
 
-# ------------------------------------------------------------
-# TENDENCIA SEMANAL
-# ------------------------------------------------------------
-def tendencia_semanal_estres(data):
-    df = pd.DataFrame(data)
-
-    if df.empty:
-        return None, None
-
-    df["fecha"] = pd.to_datetime(df["fecha"])
-    df["semana"] = df["fecha"].dt.isocalendar().week
-    semana_actual = df["semana"].max()
-
-    df_semana = df[df["semana"] == semana_actual]
-
-    tendencia = df_semana.groupby("fecha")["estres"].mean().reset_index()
-
-    return tendencia["fecha"], tendencia["estres"]
-
-# ------------------------------------------------------------
-# PIE CHART EMOCIONES
-# ------------------------------------------------------------
-def pie_emociones(data):
-    if not data:
-        return [], []
-
-    df = pd.DataFrame(data)
-    counts = df["estado_emocional"].value_counts()
-
-    return list(counts.index), list(counts.values)
-
-# ------------------------------------------------------------
-# CSV POR SEDE
-# ------------------------------------------------------------
+# ---- CSV ----
 def generate_csv_report_by_sede(data, sede):
     df = pd.DataFrame([d for d in data if d["sede"] == sede])
-    df = df.sort_values(["fecha", "nombre"])
-    return df.to_csv(index=False)
+
+    df = df.sort_values(by=["fecha", "nombre"])
+
+    csv = StringIO()
+    df.to_csv(csv, index=False)
+    return csv.getvalue()
