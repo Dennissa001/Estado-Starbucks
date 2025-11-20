@@ -11,7 +11,7 @@ def load_data(path):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
 
 def save_data(path, data):
@@ -22,7 +22,7 @@ def load_users(path):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
 
 def authenticate(username, password, users):
@@ -36,7 +36,7 @@ def authenticate(username, password, users):
 # =======================
 def add_employee_entry(path, user, hora_inicio, hora_salida, descanso_cumplido, motivo_descanso, estres, comentario):
     data = load_data(path)
-    new_id = max([d['id'] for d in data], default=0) + 1
+    new_id = max([d.get('id',0) for d in data], default=0) + 1
     entry = {
         'id': new_id,
         'nombre': user['username'],
@@ -57,18 +57,23 @@ def add_employee_entry(path, user, hora_inicio, hora_salida, descanso_cumplido, 
 # =======================
 def filter_data(data, fecha=None, sede=None):
     df = pd.DataFrame(data)
-    if fecha is not None:
+    if 'fecha' in df.columns and fecha is not None:
         df = df[df['fecha'] == str(fecha)]
-    if sede is not None:
-        df = df[df.get('sede') == sede]
+    if 'sede' in df.columns and sede is not None:
+        df = df[df['sede'] == sede]
     return df.to_dict(orient='records')
 
 def get_alerts(filtered_data):
+    if not filtered_data:
+        return []
     df = pd.DataFrame(filtered_data)
     alerts = []
     for _, row in df.iterrows():
-        if float(row.get('estres',0)) >= 8:
-            alerts.append({'id': row.get('id'), 'nombre': row.get('nombre'), 'motivo': 'Estrés muy alto'})
+        try:
+            if float(row.get('estres',0)) >= 8:
+                alerts.append({'id': row.get('id'), 'nombre': row.get('nombre'), 'motivo': 'Estrés muy alto'})
+        except ValueError:
+            pass
         try:
             hi = datetime.strptime(row.get('hora_inicio','00:00:00'), '%H:%M:%S')
             hs = datetime.strptime(row.get('hora_salida','00:00:00'), '%H:%M:%S')
@@ -88,22 +93,25 @@ def get_alerts(filtered_data):
     return uniq
 
 def compute_kpis(filtered_data):
-    df = pd.DataFrame(filtered_data)
-    if df.empty:
+    if not filtered_data:
         fig_empty = plt.figure()
         return {'pct_descanso':0.0,'estres_promedio':0.0,'alertas_count':0,'fig_estr':fig_empty,'fig_evo':fig_empty,'fig_dept':fig_empty}
 
-    pct_desc = df['descanso_cumplido'].fillna(False).apply(bool).mean()*100
-    estres_prom = pd.to_numeric(df['estres'], errors='coerce').fillna(0).mean()
+    df = pd.DataFrame(filtered_data)
+    pct_desc = df.get('descanso_cumplido', pd.Series()).apply(bool).mean()*100
+    estres_prom = pd.to_numeric(df.get('estres', pd.Series()), errors='coerce').fillna(0).mean()
 
     # Histograma de estrés
     fig1 = plt.figure()
-    plt.hist(pd.to_numeric(df['estres'], errors='coerce').dropna(), bins=5, color='skyblue')
+    plt.hist(pd.to_numeric(df.get('estres', pd.Series()), errors='coerce').dropna(), bins=5, color='skyblue')
     plt.title('Histograma de estrés')
 
     # Tendencia semanal simulada
     fig2 = plt.figure()
-    today = pd.to_datetime(df['fecha']).max()
+    try:
+        today = pd.to_datetime(df['fecha']).max()
+    except Exception:
+        today = pd.to_datetime(datetime.today().date())
     days = [today - timedelta(days=i) for i in range(6,-1,-1)]
     vals = [max(0, estres_prom + (i-3)*0.1) for i,_ in enumerate(days)]
     plt.plot(days, vals, marker='o')
@@ -129,7 +137,10 @@ def compute_kpis(filtered_data):
 
 def generate_csv_report_by_sede(data, sede):
     df = pd.DataFrame(data)
-    df_sede = df[df['sede']==sede]
+    if 'sede' in df.columns:
+        df_sede = df[df['sede']==sede]
+    else:
+        df_sede = pd.DataFrame()
     buf = io.StringIO()
     df_sede.to_csv(buf, index=False)
     return buf.getvalue().encode('utf-8')
