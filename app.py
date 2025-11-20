@@ -5,7 +5,6 @@ import pandas as pd
 
 st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
 
-# Archivos de datos
 DATA_PATH = "data.json"
 USERS_PATH = "users.json"
 
