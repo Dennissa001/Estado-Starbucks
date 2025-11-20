@@ -1,6 +1,7 @@
 [
-  {"username": "admin", "password": "1234", "role": "admin", "sede": "Todas"},
-  {"username": "carlos", "password": "abcd", "role": "empleado", "sede": "Miraflores"},
-  {"username": "maria", "password": "abcd", "role": "empleado", "sede": "San Isidro"},
-  {"username": "andres", "password": "abcd", "role": "empleado", "sede": "Surco"}
+  {"username": "admin", "password": "1234", "role": "admin", "sede": "Todas", "nombre": "Administrador"},
+  {"username": "carlos", "password": "abcd", "role": "empleado", "sede": "Miraflores", "nombre": "Carlos Pérez"},
+  {"username": "maria", "password": "abcd", "role": "empleado", "sede": "San Isidro", "nombre": "María López"},
+  {"username": "andres", "password": "abcd", "role": "empleado", "sede": "Surco", "nombre": "Andrés García"}
 ]
+
