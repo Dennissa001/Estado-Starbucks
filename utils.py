@@ -57,10 +57,19 @@ def add_employee_entry(path, user, hora_inicio, hora_salida, descanso_cumplido, 
 # =======================
 def filter_data(data, fecha=None, sede=None):
     df = pd.DataFrame(data)
+    
+    # Si el DataFrame está vacío, devolver lista vacía
+    if df.empty:
+        return []
+
+    # Filtrar por fecha solo si existe la columna
     if 'fecha' in df.columns and fecha is not None:
         df = df[df['fecha'] == str(fecha)]
+
+    # Filtrar por sede solo si existe la columna
     if 'sede' in df.columns and sede is not None:
         df = df[df['sede'] == sede]
+
     return df.to_dict(orient='records')
 
 def get_alerts(filtered_data):
