@@ -1,26 +1,7 @@
 [
-    {
-        "username": "admin",
-        "password": "admin123",
-        "role": "admin",
-        "sede": "Central"
-    },
-    {
-        "username": "maria",
-        "password": "111",
-        "role": "empleado",
-        "sede": "Larcomar"
-    },
-    {
-        "username": "jose",
-        "password": "222",
-        "role": "empleado",
-        "sede": "San Isidro"
-    },
-    {
-        "username": "ana",
-        "password": "333",
-        "role": "empleado",
-        "sede": "Miraflores"
-    }
+  {"username":"admin","password":"admin123","role":"admin","nombre":"Administrador","sede":"Central"},
+  {"username":"andrea","password":"1234","role":"empleado","nombre":"Andrea","sede":"Miraflores"},
+  {"username":"carlos","password":"1234","role":"empleado","nombre":"Carlos","sede":"San Isidro"},
+  {"username":"maria","password":"1234","role":"empleado","nombre":"María","sede":"La Molina"},
+  {"username":"jose","password":"1234","role":"empleado","nombre":"José","sede":"Barranco"}
 ]
