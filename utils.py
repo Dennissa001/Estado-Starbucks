@@ -1,200 +1,183 @@
 # utils.py
 import json
-import os
 import pandas as pd
 from datetime import datetime
 import matplotlib.pyplot as plt
-from io import BytesIO, StringIO
+from io import BytesIO
 
-# -----------------------
-# Archivo/IO
-# -----------------------
-def load_data(path="data.json"):
-    if not os.path.exists(path):
-        return []
+
+# -------------------------
+# CARGA Y GUARDADO
+# -------------------------
+def load_data(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except:
         return []
+
 
 def save_data(path, data):
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-def load_users(path="users.json"):
-    if not os.path.exists(path):
-        return []
+
+def load_users(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except:
         return []
 
-# -----------------------
-# Autenticación
-# -----------------------
+
+# -------------------------
+# LOGIN
+# -------------------------
 def authenticate(username, password, users):
     for u in users:
-        if u.get("username") == username and u.get("password") == password:
+        if u["username"] == username and u["password"] == password:
             return u
     return None
 
-# -----------------------
-# Añadir registro de empleado
-# -----------------------
+
+# -------------------------
+# AGREGAR REGISTRO
+# -------------------------
 def add_employee_entry(path, user, hora_inicio, hora_salida,
-                       descanso_cumplido, motivo_descanso,
-                       estres, estado, comentario=""):
-    """
-    Guarda un registro en data.json.
-    hora_inicio / hora_salida: datetime.time (st.time_input)
-    user: dict con keys username,nombre,sede,role
-    """
+                       descanso, motivo, estres, comentario):
+
     data = load_data(path)
+
     entry = {
-        "username": user.get("username"),
-        "nombre": user.get("nombre", user.get("username")),
-        "sede": user.get("sede", ""),
+        "nombre": user["username"],
+        "sede": user["sede"],
         "fecha": str(datetime.today().date()),
-        "hora_inicio": (hora_inicio.strftime("%H:%M") if hasattr(hora_inicio, "strftime") else str(hora_inicio)),
-        "hora_salida": (hora_salida.strftime("%H:%M") if hasattr(hora_salida, "strftime") else str(hora_salida)),
-        "descanso": bool(descanso_cumplido),
-        "motivo_descanso": motivo_descanso if not descanso_cumplido else "",
-        "estres": float(estres) if estres is not None else None,
-        "estado": estado,
-        "comentario": comentario
+        "hora_inicio": str(hora_inicio),
+        "hora_salida": str(hora_salida),
+        "descanso": descanso,
+        "motivo_descanso": motivo,
+        "estres": estres,
+        "estado_emocional": comentario
     }
+
     data.append(entry)
     save_data(path, data)
 
-# -----------------------
-# Filtrado seguro
-# -----------------------
+
+# -------------------------
+# FILTRO
+# -------------------------
 def filter_data(data, fecha=None, sede=None):
     df = pd.DataFrame(data)
+
     if df.empty:
         return []
-    if fecha is not None and "fecha" in df.columns:
-        df = df[df["fecha"] == str(fecha)]
-    if sede is not None and "sede" in df.columns:
+
+    if fecha and "fecha" in df.columns:
+        df = df[df["fecha"] == fecha]
+
+    if sede and "sede" in df.columns:
         df = df[df["sede"] == sede]
+
     return df.to_dict(orient="records")
 
-# -----------------------
-# Alertas
-# -----------------------
-def get_alerts(data):
-    """
-    data: list[dict] o DataFrame-compatible list.
-    Devuelve lista de alertas {nombre, motivo}
-    """
-    if not data:
-        return []
-    df = pd.DataFrame(data)
-    alerts = []
-    for _, row in df.iterrows():
-        nombre = row.get("nombre", row.get("username", "Desconocido"))
-        # 1) Salida no registrada
-        if not row.get("hora_salida"):
-            alerts.append({"nombre": nombre, "motivo": "Salida no registrada"})
-        # 2) Horas excesivas (>9)
-        try:
-            hi = datetime.strptime(row.get("hora_inicio", "00:00"), "%H:%M")
-            hs = datetime.strptime(row.get("hora_salida", "00:00"), "%H:%M")
-            dur = (hs - hi).seconds / 3600
-            if dur > 9:
-                alerts.append({"nombre": nombre, "motivo": f"Exceso de jornada ({dur:.1f}h)"})
-        except Exception:
-            pass
-        # 3) Estrés alto
-        try:
-            if float(row.get("estres", 0)) >= 8:
-                alerts.append({"nombre": nombre, "motivo": "Estrés muy alto (>=8)"})
-        except Exception:
-            pass
-        # 4) Descanso incumplido
-        if row.get("descanso") in [False, "False", 0]:
-            motivo = row.get("motivo_descanso", "")
-            alerts.append({"nombre": nombre, "motivo": f"Descanso no cumplido ({motivo})"})
-        # 5) Ingreso tardío (>=10:00)
-        try:
-            hi = datetime.strptime(row.get("hora_inicio", "00:00"), "%H:%M")
-            if hi.hour >= 10:
-                alerts.append({"nombre": nombre, "motivo": "Ingreso tardío (>=10:00)"})
-        except Exception:
-            pass
-    return alerts
 
-# -----------------------
-# KPIs y gráficos
-# -----------------------
+# -------------------------
+# KPIS + GRAFICOS
+# -------------------------
 def compute_kpis(data):
     df = pd.DataFrame(data)
+
+    # Valores vacíos
     if df.empty:
         return {
-            "estres_promedio": 0.0,
-            "pct_descanso": 0.0,
+            "estres_promedio": 0,
+            "pct_descanso": 0,
             "alertas_count": 0,
-            "fig_bar_estr": None,
-            "fig_trend": None
+            "fig_trend": plt.figure(),
+            "fig_pie_estado": plt.figure(),
+            "fig_bar_estr": plt.figure()
         }
-    # estrés promedio
-    try:
-        estres_prom = float(pd.to_numeric(df.get("estres", pd.Series()), errors="coerce").mean())
-    except Exception:
-        estres_prom = 0.0
-    # % descanso cumplido
-    try:
-        pct_descanso = float(df.get("descanso", pd.Series()).apply(bool).mean() * 100)
-    except Exception:
-        pct_descanso = 0.0
-    # alertas count
-    alerts = get_alerts(data)
-    alert_count = len(alerts)
 
-    # gráfico barras por sede (estrés promedio)
-    fig_bar = None
-    if "sede" in df.columns and "estres" in df.columns:
-        try:
-            fig_bar, ax = plt.subplots()
-            grp = df.groupby("sede")["estres"].apply(lambda s: pd.to_numeric(s, errors="coerce").fillna(0).mean())
-            grp.plot(kind="bar", ax=ax)
-            ax.set_title("Estrés promedio por sede")
-            ax.set_ylabel("Estrés promedio")
-            plt.tight_layout()
-        except Exception:
-            fig_bar = None
+    # Métricas básicas
+    estres_prom = df["estres"].mean()
+    pct_desc = (df["descanso"].mean() * 100) if "descanso" in df.columns else 0
 
-    # tendencia por fecha
-    fig_trend = None
-    if "fecha" in df.columns and "estres" in df.columns:
-        try:
-            fig_trend, ax2 = plt.subplots()
-            grp2 = df.groupby("fecha")["estres"].apply(lambda s: pd.to_numeric(s, errors="coerce").fillna(0).mean())
-            grp2.plot(kind="line", marker="o", ax=ax2)
-            ax2.set_title("Tendencia del estrés por fecha")
-            ax2.set_ylabel("Estrés promedio")
-            plt.tight_layout()
-        except Exception:
-            fig_trend = None
+    # Alertas
+    alertas = get_alerts(data)
+
+    # ------------------- TENDENCIA SEMANAL -------------------
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    df["semana"] = df["fecha"].dt.isocalendar().week
+
+    sem = df.groupby("semana")["estres"].mean()
+
+    fig_trend = plt.figure(figsize=(6, 3))
+    plt.bar(sem.index, sem.values)
+    plt.title("Tendencia semanal del estrés")
+    plt.xlabel("Semana")
+    plt.ylabel("Estrés promedio")
+
+    # ------------------- PIE ESTADO EMOCIONAL -------------------
+    fig_pie = plt.figure(figsize=(4, 4))
+    estados = df["estado_emocional"].value_counts()
+    plt.pie(estados, labels=estados.index, autopct="%1.1f%%")
+    plt.title("Estado emocional del personal")
+
+    # ------------------- BARRA POR SEDE -------------------
+    fig_bar = plt.figure(figsize=(6, 3))
+    sede_bar = df.groupby("sede")["estres"].mean()
+    plt.bar(sede_bar.index, sede_bar.values)
+    plt.title("Estrés por sede")
 
     return {
         "estres_promedio": estres_prom,
-        "pct_descanso": pct_descanso,
-        "alertas_count": alert_count,
-        "fig_bar_estr": fig_bar,
-        "fig_trend": fig_trend
+        "pct_descanso": pct_desc,
+        "alertas_count": len(alertas),
+        "fig_trend": fig_trend,
+        "fig_pie_estado": fig_pie,
+        "fig_bar_estr": fig_bar
     }
 
-# -----------------------
-# Reportes CSV
-# -----------------------
+
+# -------------------------
+# ALERTAS
+# -------------------------
+def get_alerts(data):
+    alerts = []
+
+    for d in data:
+        if d["estres"] >= 8:
+            alerts.append({
+                "nombre": d["nombre"],
+                "motivo": "Estrés muy alto (>=8)",
+                "fecha": d["fecha"],
+                "sede": d["sede"]
+            })
+
+        if not d["descanso"]:
+            alerts.append({
+                "nombre": d["nombre"],
+                "motivo": "Descanso NO cumplido",
+                "fecha": d["fecha"],
+                "sede": d["sede"]
+            })
+
+    return alerts
+
+
+# -------------------------
+# CSV ORDENADO
+# -------------------------
 def generate_csv_report_by_sede(data, sede):
     df = pd.DataFrame(data)
-    if df.empty or "sede" not in df.columns:
-        return "".encode("utf-8")
-    df_s = df[df["sede"] == sede]
-    buf = StringIO()
-    df_s.to_csv(buf, index=False)
-    return buf.getvalue().encode("utf-8")
+    df = df[df["sede"] == sede]
+
+    df = df[[
+        "sede", "fecha", "nombre", "hora_inicio", "hora_salida",
+        "descanso", "estres", "estado_emocional", "motivo_descanso"
+    ]]
+
+    df = df.sort_values(by=["fecha", "nombre"])
+
+    return df.to_csv(index=False).encode("utf-8")
