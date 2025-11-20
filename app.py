@@ -1,7 +1,6 @@
 import streamlit as st
 from utils import load_data, load_users, authenticate, add_employee_entry, filter_data, compute_kpis, get_alerts, generate_csv_report_by_sede
 from datetime import datetime
-import pandas as pd
 
 st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
 
@@ -57,7 +56,19 @@ else:
     if page == "Registro Empleado" and user['role'] == "empleado":
         st.title("Registro de Testimonio del Empleado")
         st.markdown(
-            "Registra tu experiencia del día. La sede y la hora se registran automáticamente."
+            "Registra tu experiencia del día. La sede se registrará automáticamente."
+        )
+
+        # Hora editable por el empleado
+        hora_inicio = st.time_input(
+            "Hora de inicio",
+            value=datetime.now().time(),
+            key="hora_inicio"
+        )
+        hora_salida = st.time_input(
+            "Hora de salida",
+            value=datetime.now().time(),
+            key="hora_salida"
         )
 
         descanso_cumplido = st.radio("Cumplió su descanso?", ["Sí", "No"]) == "Sí"
@@ -75,8 +86,8 @@ else:
             add_employee_entry(
                 DATA_PATH,
                 user,
-                hora_inicio=datetime.now().time(),
-                hora_salida=datetime.now().time(),
+                hora_inicio=hora_inicio,
+                hora_salida=hora_salida,
                 descanso_cumplido=descanso_cumplido,
                 motivo_descanso=motivo_descanso,
                 estres=estres,
