@@ -7,19 +7,21 @@ st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
 DATA_PATH = "data.json"
 USERS_PATH = "users.json"
 
-# -------------------------------
-# LOGIN
-# -------------------------------
+# -------------------------------------
+# LOGIN SYSTEM
+# -------------------------------------
 st.title("Bienestar Starbucks - Iniciar Sesión")
 users = load_users(USERS_PATH)
 
-if 'login' not in st.session_state:
+if "login" not in st.session_state:
     st.session_state.login = False
     st.session_state.user = None
 
+# ----------- LOGIN VIEW -------------
 if not st.session_state.login:
     username = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
+
     if st.button("Ingresar"):
         user = authenticate(username, password, users)
         if user:
@@ -27,62 +29,79 @@ if not st.session_state.login:
             st.session_state.user = user
         else:
             st.error("Usuario o contraseña incorrectos")
+
+# ---------- LOGGED IN -------------
 else:
     user = st.session_state.user
+
+    # SIDEBAR
     st.sidebar.title(f"Hola, {user['username']} ({user['role']})")
+
+    # CERRAR SESIÓN
+    if st.sidebar.button("Cerrar sesión 🔒"):
+        st.session_state.login = False
+        st.session_state.user = None
+        st.rerun()
+
+    # Menú lateral
     page_options = ["Registro Empleado"]
-    if user['role'] == "admin":
+    if user["role"] == "admin":
         page_options += ["Dashboard", "Alertas", "Reportes", "Tendencias"]
+
     page = st.sidebar.selectbox("Ir a:", page_options)
 
-    # -------------------------------
-    # CARGA DE DATOS
-    # -------------------------------
+    # Carga de datos
     data = load_data(DATA_PATH)
     fecha_seleccionada = datetime.today().date()
-    sede_filtro = None
-    if user['role'] == "empleado":
-        sede_filtro = user['sede']
-    elif user['role'] == "admin":
-        sede_options = ["Todas"] + sorted(list({d.get('sede','No definida') for d in data}))
-        sede_filtro = st.sidebar.selectbox("Sede:", options=sede_options)
+
+    if user["role"] == "empleado":
+        sede_filtro = user["sede"]
+    else:  # admin
+        sedes = ["Todas"] + sorted(list({d.get("sede", "ND") for d in data}))
+        sede_filtro = st.sidebar.selectbox("Sede:", options=sedes)
         if sede_filtro == "Todas":
             sede_filtro = None
+
     filtered = filter_data(data, fecha=str(fecha_seleccionada), sede=sede_filtro)
 
-    # -------------------------------
+    # ---------------------------------------------------------
     # REGISTRO EMPLEADO
-    # -------------------------------
-    if page == "Registro Empleado" and user['role'] == "empleado":
+    # ---------------------------------------------------------
+    if page == "Registro Empleado" and user["role"] == "empleado":
         st.title("Registro de Testimonio del Empleado")
-        st.markdown(
-            "Registra tu experiencia del día. La sede se registrará automáticamente."
-        )
 
-        # Hora editable por el empleado
+        # Horarios editables
         hora_inicio = st.time_input(
-            "Hora de inicio",
+            "Hora de inicio:",
             value=datetime.now().time(),
             key="hora_inicio"
         )
+
         hora_salida = st.time_input(
-            "Hora de salida",
+            "Hora de salida:",
             value=datetime.now().time(),
             key="hora_salida"
         )
 
-        descanso_cumplido = st.radio("Cumplió su descanso?", ["Sí", "No"]) == "Sí"
+        # Descanso
+        descanso_cumplido = st.radio("¿Cumplió su descanso?", ["Sí", "No"]) == "Sí"
         motivo_descanso = ""
         if not descanso_cumplido:
             motivo_descanso = st.selectbox(
-                "Motivo del descanso no cumplido",
-                ["Alta demanda de clientes", "No quiso", "Otro"]
+                "Motivo:",
+                ["Alta demanda de clientes", "No quiso", "Falta de personal", "Otro"]
             )
 
-        estres = st.slider("Nivel de estrés (0-10)", 0, 10, 5)
-        comentario = st.text_area("¿Cómo te has sentido hoy?")
+        # Estrés
+        estres = st.slider("Nivel de estrés (0 - 10)", 0, 10, 5)
 
-        if st.button("Registrar testimonio"):
+        # Estado emocional (MEJORA PEDIDA)
+        estado_emocional = st.selectbox(
+            "¿Cómo te sientes hoy?",
+            ["Feliz 😊", "Tranquilo 😌", "Normal 😐", "Estresado 😣", "Agotado 😫"]
+        )
+
+        if st.button("Registrar"):
             add_employee_entry(
                 DATA_PATH,
                 user,
@@ -91,56 +110,60 @@ else:
                 descanso_cumplido=descanso_cumplido,
                 motivo_descanso=motivo_descanso,
                 estres=estres,
-                comentario=comentario
+                comentario=estado_emocional
             )
-            st.success("Testimonio registrado correctamente. Gracias por tu aporte 💚")
+            st.success("Información registrada correctamente 💚")
 
-    # -------------------------------
-    # DASHBOARD
-    # -------------------------------
-    if page == "Dashboard" and user['role'] == "admin":
-        st.title("Dashboard de Bienestar y Cumplimiento")
+    # ---------------------------------------------------------
+    # ADMIN: DASHBOARD
+    # ---------------------------------------------------------
+    if page == "Dashboard" and user["role"] == "admin":
+        st.title("Dashboard de Bienestar")
+
         kpis = compute_kpis(filtered)
-        c1, c2, c3 = st.columns(3)
-        c1.metric("% Cumplen descansos", f"{kpis['pct_descanso']:.1f}%")
-        c2.metric("Estrés promedio", f"{kpis['estres_promedio']:.1f}/10")
-        c3.metric("Alertas activas", kpis['alertas_count'])
-        st.markdown("---")
-        st.subheader("Distribución de estrés")
-        st.pyplot(kpis['fig_estr'])
 
-    # -------------------------------
-    # ALERTAS
-    # -------------------------------
-    if page == "Alertas" and user['role'] == "admin":
-        st.title("Alertas")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Promedio de estrés", f"{kpis['estres_promedio']:.1f}/10")
+        c2.metric("% de descanso cumplido", f"{kpis['pct_descanso']:.1f}%")
+        c3.metric("Alertas detectadas", kpis["alertas_count"])
+
+        st.markdown("---")
+
+        st.subheader("Estrés promedio por sede (gráfico de barras)")
+        st.pyplot(kpis["fig_bar_estr"])
+
+    # ---------------------------------------------------------
+    # ADMIN: ALERTAS
+    # ---------------------------------------------------------
+    if page == "Alertas" and user["role"] == "admin":
+        st.title("Alertas de Cumplimiento Laboral")
         alerts = get_alerts(filtered)
+
         if not alerts:
-            st.success("No hay alertas para los filtros actuales 🎉")
+            st.success("No hay alertas activas 🎉")
         else:
             for a in alerts:
-                st.warning(f"ID {a['id']} - {a['nombre']}: {a['motivo']}")
+                st.warning(f"⚠️ {a['nombre']} - {a['motivo']}")
 
-    # -------------------------------
+    # ---------------------------------------------------------
     # REPORTES
-    # -------------------------------
-    if page == "Reportes" and user['role'] == "admin":
+    # ---------------------------------------------------------
+    if page == "Reportes" and user["role"] == "admin":
         st.title("Reportes por sede")
-        sedes = sorted(list({d.get('sede','No definida') for d in data}))
+        sedes = sorted(list({d.get("sede", "ND") for d in data}))
         for s in sedes:
-            if st.button(f"Descargar CSV - {s}"):
+            if st.button(f"Descargar reporte {s}"):
                 csv_bytes = generate_csv_report_by_sede(data, s)
                 st.download_button(
-                    f"Descargar CSV {s}",
+                    f"Descargar {s}",
                     data=csv_bytes,
                     file_name=f"reporte_{s}.csv",
                     mime="text/csv"
                 )
 
-    # -------------------------------
+    # ---------------------------------------------------------
     # TENDENCIAS
-    # -------------------------------
-    if page == "Tendencias" and user['role'] == "admin":
-        st.title("Tendencias")
-        kpis = compute_kpis(filtered)
-        st.pyplot(kpis['fig_dept'])
+    # ---------------------------------------------------------
+    if page == "Tendencias" and user["role"] == "admin":
+        st.title("Tendencias del Bienestar")
+        st.pyplot(kpis["fig_dept"])
