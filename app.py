@@ -31,27 +31,63 @@ if not st.session_state.login:
 else:
     user = st.session_state.user
     st.sidebar.title(f"Hola, {user['username']} ({user['role']})")
-    page = st.sidebar.selectbox("Ir a:", ["Dashboard", "Registro Empleado", "Alertas", "Reportes", "Tendencias"])
+    page_options = ["Registro Empleado"]
+    if user['role'] == "admin":
+        page_options += ["Dashboard", "Alertas", "Reportes", "Tendencias"]
+    page = st.sidebar.selectbox("Ir a:", page_options)
 
     # -------------------------------
     # CARGA DE DATOS
     # -------------------------------
     data = load_data(DATA_PATH)
-    fecha_seleccionada = st.sidebar.date_input("Fecha:", value=pd.to_datetime(datetime.today()))
+    fecha_seleccionada = datetime.today().date()
     sede_filtro = None
-    if user['role']=="empleado":
+    if user['role'] == "empleado":
         sede_filtro = user['sede']
-    elif user['role']=="admin":
+    elif user['role'] == "admin":
         sede_options = ["Todas"] + sorted(list({d.get('sede','No definida') for d in data}))
         sede_filtro = st.sidebar.selectbox("Sede:", options=sede_options)
-        if sede_filtro=="Todas":
+        if sede_filtro == "Todas":
             sede_filtro = None
     filtered = filter_data(data, fecha=str(fecha_seleccionada), sede=sede_filtro)
 
     # -------------------------------
+    # REGISTRO EMPLEADO
+    # -------------------------------
+    if page == "Registro Empleado" and user['role'] == "empleado":
+        st.title("Registro de Testimonio del Empleado")
+        st.markdown(
+            "Registra tu experiencia del día. La sede y la hora se registran automáticamente."
+        )
+
+        descanso_cumplido = st.radio("Cumplió su descanso?", ["Sí", "No"]) == "Sí"
+        motivo_descanso = ""
+        if not descanso_cumplido:
+            motivo_descanso = st.selectbox(
+                "Motivo del descanso no cumplido",
+                ["Alta demanda de clientes", "No quiso", "Otro"]
+            )
+
+        estres = st.slider("Nivel de estrés (0-10)", 0, 10, 5)
+        comentario = st.text_area("¿Cómo te has sentido hoy?")
+
+        if st.button("Registrar testimonio"):
+            add_employee_entry(
+                DATA_PATH,
+                user,
+                hora_inicio=datetime.now().time(),
+                hora_salida=datetime.now().time(),
+                descanso_cumplido=descanso_cumplido,
+                motivo_descanso=motivo_descanso,
+                estres=estres,
+                comentario=comentario
+            )
+            st.success("Testimonio registrado correctamente. Gracias por tu aporte 💚")
+
+    # -------------------------------
     # DASHBOARD
     # -------------------------------
-    if page=="Dashboard":
+    if page == "Dashboard" and user['role'] == "admin":
         st.title("Dashboard de Bienestar y Cumplimiento")
         kpis = compute_kpis(filtered)
         c1, c2, c3 = st.columns(3)
@@ -63,27 +99,9 @@ else:
         st.pyplot(kpis['fig_estr'])
 
     # -------------------------------
-    # REGISTRO EMPLEADO
-    # -------------------------------
-    elif page=="Registro Empleado" and user['role']=="empleado":
-        st.title("Registro de Turno")
-        hora_inicio = st.time_input("Hora de inicio", value=datetime.now().time())
-        hora_salida = st.time_input("Hora de salida", value=datetime.now().time())
-        descanso_cumplido = st.radio("Cumplió su descanso?", ["Sí", "No"])=="Sí"
-        motivo_descanso = ""
-        if not descanso_cumplido:
-            motivo_descanso = st.selectbox("Motivo del descanso no cumplido", ["Alta demanda de clientes", "No quiso", "Otro"])
-        estres = st.slider("Nivel de estrés (0-10)", 0, 10, 5)
-        comentario = st.text_area("¿Cómo te has sentido hoy?")
-
-        if st.button("Registrar entrada"):
-            add_employee_entry(DATA_PATH, user, hora_inicio, hora_salida, descanso_cumplido, motivo_descanso, estres, comentario)
-            st.success("Registro guardado correctamente.")
-
-    # -------------------------------
     # ALERTAS
     # -------------------------------
-    elif page=="Alertas":
+    if page == "Alertas" and user['role'] == "admin":
         st.title("Alertas")
         alerts = get_alerts(filtered)
         if not alerts:
@@ -95,18 +113,23 @@ else:
     # -------------------------------
     # REPORTES
     # -------------------------------
-    elif page=="Reportes" and user['role']=="admin":
+    if page == "Reportes" and user['role'] == "admin":
         st.title("Reportes por sede")
         sedes = sorted(list({d.get('sede','No definida') for d in data}))
         for s in sedes:
             if st.button(f"Descargar CSV - {s}"):
                 csv_bytes = generate_csv_report_by_sede(data, s)
-                st.download_button(f"Descargar CSV {s}", data=csv_bytes, file_name=f"reporte_{s}.csv", mime="text/csv")
+                st.download_button(
+                    f"Descargar CSV {s}",
+                    data=csv_bytes,
+                    file_name=f"reporte_{s}.csv",
+                    mime="text/csv"
+                )
 
     # -------------------------------
     # TENDENCIAS
     # -------------------------------
-    elif page=="Tendencias" and user['role']=="admin":
+    if page == "Tendencias" and user['role'] == "admin":
         st.title("Tendencias")
         kpis = compute_kpis(filtered)
         st.pyplot(kpis['fig_dept'])
