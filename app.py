@@ -1,73 +1,113 @@
 import streamlit as st
-from utils import load_data, compute_kpis, get_alerts, generate_csv_report_by_sede, add_employee_entry, filter_data
-import pandas as pd
+from utils import load_data, load_users, authenticate, add_employee_entry, filter_data, compute_kpis, get_alerts, generate_csv_report_by_sede
 from datetime import datetime
+import pandas as pd
 
-st.set_page_config(page_title="Dashboard Bienestar y Cumplimiento", layout="wide")
+st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
 
-st.sidebar.title("Menú")
-page = st.sidebar.selectbox("Ir a:", ["Dashboard", "Ingreso Empleado", "Alertas", "Reportes", "Tendencias"])
-
-# Ruta de archivo
+# Archivos de datos
 DATA_PATH = "data.json"
+USERS_PATH = "users.json"
 
-# Carga de datos
-@st.cache_data
-def cached_load(path):
-    return load_data(path)
+# -------------------------------
+# LOGIN
+# -------------------------------
+st.title("Bienestar Starbucks - Iniciar Sesión")
+users = load_users(USERS_PATH)
 
-data = cached_load(DATA_PATH)
+if 'login' not in st.session_state:
+    st.session_state.login = False
+    st.session_state.user = None
 
-# FILTROS COMUNES
-st.sidebar.header("Filtros")
-fecha_seleccionada = st.sidebar.date_input("Fecha:", value=pd.to_datetime(datetime.today()))
-sede = st.sidebar.selectbox("Sede:", options=["Todas"] + sorted(list({d.get('sede','No definida') for d in data})))
-filtered = filter_data(data, fecha=str(fecha_seleccionada), sede=(None if sede=="Todas" else sede))
+if not st.session_state.login:
+    username = st.text_input("Usuario")
+    password = st.text_input("Contraseña", type="password")
+    if st.button("Ingresar"):
+        user = authenticate(username, password, users)
+        if user:
+            st.session_state.login = True
+            st.session_state.user = user
+        else:
+            st.error("Usuario o contraseña incorrectos")
+else:
+    user = st.session_state.user
+    st.sidebar.title(f"Hola, {user['username']} ({user['role']})")
+    page = st.sidebar.selectbox("Ir a:", ["Dashboard", "Registro Empleado", "Alertas", "Reportes", "Tendencias"])
 
-if page == "Dashboard":
-    st.title("Dashboard de Bienestar y Cumplimiento")
-    kpis = compute_kpis(filtered)
+    # -------------------------------
+    # CARGA DE DATOS
+    # -------------------------------
+    data = load_data(DATA_PATH)
+    fecha_seleccionada = st.sidebar.date_input("Fecha:", value=pd.to_datetime(datetime.today()))
+    sede_filtro = None
+    if user['role']=="empleado":
+        sede_filtro = user['sede']
+    elif user['role']=="admin":
+        sede_options = ["Todas"] + sorted(list({d.get('sede','No definida') for d in data}))
+        sede_filtro = st.sidebar.selectbox("Sede:", options=sede_options)
+        if sede_filtro=="Todas":
+            sede_filtro = None
+    filtered = filter_data(data, fecha=str(fecha_seleccionada), sede=sede_filtro)
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("% Cumplen descansos", f"{kpis['pct_descanso']:.1f}%")
-    c2.metric("Estrés promedio", f"{kpis['estres_promedio']:.1f}/10")
-    c3.metric("Alertas activas", kpis['alertas_count'])
+    # -------------------------------
+    # DASHBOARD
+    # -------------------------------
+    if page=="Dashboard":
+        st.title("Dashboard de Bienestar y Cumplimiento")
+        kpis = compute_kpis(filtered)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("% Cumplen descansos", f"{kpis['pct_descanso']:.1f}%")
+        c2.metric("Estrés promedio", f"{kpis['estres_promedio']:.1f}/10")
+        c3.metric("Alertas activas", kpis['alertas_count'])
+        st.markdown("---")
+        st.subheader("Distribución de estrés")
+        st.pyplot(kpis['fig_estr'])
 
-    st.markdown("---")
-    st.subheader("Distribución de estrés")
-    st.pyplot(kpis['fig_estr'])
+    # -------------------------------
+    # REGISTRO EMPLEADO
+    # -------------------------------
+    elif page=="Registro Empleado" and user['role']=="empleado":
+        st.title("Registro de Turno")
+        hora_inicio = st.time_input("Hora de inicio", value=datetime.now().time())
+        hora_salida = st.time_input("Hora de salida", value=datetime.now().time())
+        descanso_cumplido = st.radio("Cumplió su descanso?", ["Sí", "No"])=="Sí"
+        motivo_descanso = ""
+        if not descanso_cumplido:
+            motivo_descanso = st.selectbox("Motivo del descanso no cumplido", ["Alta demanda de clientes", "No quiso", "Otro"])
+        estres = st.slider("Nivel de estrés (0-10)", 0, 10, 5)
+        comentario = st.text_area("¿Cómo te has sentido hoy?")
 
-elif page == "Ingreso Empleado":
-    st.title("Ingreso de datos de empleado")
-    nombre = st.text_input("Nombre")
-    sede_input = st.text_input("Sede")
-    hora_inicio = st.time_input("Hora de inicio", value=datetime.now().time())
-    hora_salida = st.time_input("Hora de salida", value=datetime.now().time())
-    descanso_cumplido = st.checkbox("Cumplió su descanso")
-    estres = st.slider("Nivel de estrés (0-10)", 0, 10, 5)
+        if st.button("Registrar entrada"):
+            add_employee_entry(DATA_PATH, user, hora_inicio, hora_salida, descanso_cumplido, motivo_descanso, estres, comentario)
+            st.success("Registro guardado correctamente.")
 
-    if st.button("Registrar entrada"):
-        add_employee_entry(DATA_PATH, nombre, sede_input, hora_inicio, hora_salida, descanso_cumplido, estres)
-        st.success("Registro guardado correctamente.")
+    # -------------------------------
+    # ALERTAS
+    # -------------------------------
+    elif page=="Alertas":
+        st.title("Alertas")
+        alerts = get_alerts(filtered)
+        if not alerts:
+            st.success("No hay alertas para los filtros actuales 🎉")
+        else:
+            for a in alerts:
+                st.warning(f"ID {a['id']} - {a['nombre']}: {a['motivo']}")
 
-elif page == "Alertas":
-    st.title("Alertas inteligentes")
-    alerts = get_alerts(filtered)
-    if not alerts:
-        st.success("No hay alertas para los filtros actuales 🎉")
-    else:
-        for a in alerts:
-            st.warning(f"ID {a['id']} - {a['nombre']}: {a['motivo']}")
+    # -------------------------------
+    # REPORTES
+    # -------------------------------
+    elif page=="Reportes" and user['role']=="admin":
+        st.title("Reportes por sede")
+        sedes = sorted(list({d.get('sede','No definida') for d in data}))
+        for s in sedes:
+            if st.button(f"Descargar CSV - {s}"):
+                csv_bytes = generate_csv_report_by_sede(data, s)
+                st.download_button(f"Descargar CSV {s}", data=csv_bytes, file_name=f"reporte_{s}.csv", mime="text/csv")
 
-elif page == "Reportes":
-    st.title("Generar reportes por sede")
-    sedes = sorted(list({d.get('sede','No definida') for d in data}))
-    for s in sedes:
-        if st.button(f"Descargar CSV - {s}"):
-            csv_bytes = generate_csv_report_by_sede(data, s)
-            st.download_button(f"Descargar CSV {s}", data=csv_bytes, file_name=f"reporte_{s}.csv", mime="text/csv")
-
-elif page == "Tendencias":
-    st.title("Tendencias")
-    st.write("Gráficos de tendencia por sede y promedio de estrés, cumplimiento y alertas.")
-    st.pyplot(kpis['fig_dept'])
+    # -------------------------------
+    # TENDENCIAS
+    # -------------------------------
+    elif page=="Tendencias" and user['role']=="admin":
+        st.title("Tendencias")
+        kpis = compute_kpis(filtered)
+        st.pyplot(kpis['fig_dept'])
