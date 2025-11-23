@@ -1,25 +1,26 @@
 [
-  {"sede":"Miraflores","fecha":"2025-01-20","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":45,"estres":4,"estado":"Tranquilo","comentario":""},
-  {"sede":"Miraflores","fecha":"2025-01-21","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":45,"estres":5,"estado":"Normal","comentario":""},
-  {"sede":"Miraflores","fecha":"2025-01-22","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":40,"estres":7,"estado":"Estresado","comentario":""},
-  {"sede":"Miraflores","fecha":"2025-01-23","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":30,"estres":8,"estado":"Agotado","comentario":""},
-  {"sede":"Miraflores","fecha":"2025-01-24","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":45,"estres":6,"estado":"Normal","comentario":""},
+  {"sede":"Miraflores","fecha":"2025-11-20","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":45,"estres":4,"estado":"Tranquilo","comentario":""},
+  {"sede":"Miraflores","fecha":"2025-11-21","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":45,"estres":5,"estado":"Normal","comentario":""},
+  {"sede":"Miraflores","fecha":"2025-11-22","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":40,"estres":7,"estado":"Estresado","comentario":""},
+  {"sede":"Miraflores","fecha":"2025-11-23","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":30,"estres":8,"estado":"Agotado","comentario":""},
+  {"sede":"Miraflores","fecha":"2025-11-24","nombre":"Andrea","hora_inicio":"08:00","hora_salida":"17:00","descanso":45,"estres":6,"estado":"Normal","comentario":""},
 
-  {"sede":"San Isidro","fecha":"2025-01-20","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":50,"estres":3,"estado":"Tranquilo","comentario":""},
-  {"sede":"San Isidro","fecha":"2025-01-21","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":45,"estres":4,"estado":"Feliz","comentario":""},
-  {"sede":"San Isidro","fecha":"2025-01-22","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":30,"estres":6,"estado":"Normal","comentario":""},
-  {"sede":"San Isidro","fecha":"2025-01-23","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":45,"estres":7,"estado":"Estresado","comentario":""},
-  {"sede":"San Isidro","fecha":"2025-01-24","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":60,"estres":5,"estado":"Tranquilo","comentario":""},
+  {"sede":"San Isidro","fecha":"2025-11-20","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":50,"estres":3,"estado":"Tranquilo","comentario":""},
+  {"sede":"San Isidro","fecha":"2025-11-21","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":45,"estres":4,"estado":"Feliz","comentario":""},
+  {"sede":"San Isidro","fecha":"2025-11-22","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":30,"estres":6,"estado":"Normal","comentario":""},
+  {"sede":"San Isidro","fecha":"2025-11-23","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":45,"estres":7,"estado":"Estresado","comentario":""},
+  {"sede":"San Isidro","fecha":"2025-11-24","nombre":"Carlos","hora_inicio":"09:00","hora_salida":"18:00","descanso":60,"estres":5,"estado":"Tranquilo","comentario":""},
 
-  {"sede":"La Molina","fecha":"2025-01-20","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":45,"estres":5,"estado":"Normal","comentario":""},
-  {"sede":"La Molina","fecha":"2025-01-21","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":50,"estres":4,"estado":"Feliz","comentario":""},
-  {"sede":"La Molina","fecha":"2025-01-22","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":45,"estres":6,"estado":"Normal","comentario":""},
-  {"sede":"La Molina","fecha":"2025-01-23","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":40,"estres":7,"estado":"Estresado","comentario":""},
-  {"sede":"La Molina","fecha":"2025-01-24","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":45,"estres":5,"estado":"Normal","comentario":""},
+  {"sede":"La Molina","fecha":"2025-11-20","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":45,"estres":5,"estado":"Normal","comentario":""},
+  {"sede":"La Molina","fecha":"2025-11-21","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":50,"estres":4,"estado":"Feliz","comentario":""},
+  {"sede":"La Molina","fecha":"2025-11-22","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":45,"estres":6,"estado":"Normal","comentario":""},
+  {"sede":"La Molina","fecha":"2025-11-23","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":40,"estres":7,"estado":"Estresado","comentario":""},
+  {"sede":"La Molina","fecha":"2025-11-24","nombre":"María","hora_inicio":"07:00","hora_salida":"16:00","descanso":45,"estres":5,"estado":"Normal","comentario":""},
 
-  {"sede":"Barranco","fecha":"2025-01-20","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":45,"estres":2,"estado":"Feliz","comentario":""},
-  {"sede":"Barranco","fecha":"2025-01-21","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":35,"estres":5,"estado":"Normal","comentario":""},
-  {"sede":"Barranco","fecha":"2025-01-22","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":45,"estres":6,"estado":"Tranquilo","comentario":""},
-  {"sede":"Barranco","fecha":"2025-01-23","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":50,"estres":7,"estado":"Estresado","comentario":""},
-  {"sede":"Barranco","fecha":"2025-01-24","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":45,"estres":6,"estado":"Agotado","comentario":""}
+  {"sede":"Barranco","fecha":"2025-11-20","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":45,"estres":2,"estado":"Feliz","comentario":""},
+  {"sede":"Barranco","fecha":"2025-11-21","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":35,"estres":5,"estado":"Normal","comentario":""},
+  {"sede":"Barranco","fecha":"2025-11-22","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":45,"estres":6,"estado":"Tranquilo","comentario":""},
+  {"sede":"Barranco","fecha":"2025-11-23","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":50,"estres":7,"estado":"Estresado","comentario":""},
+  {"sede":"Barranco","fecha":"2025-11-24","nombre":"José","hora_inicio":"10:00","hora_salida":"19:00","descanso":45,"estres":6,"estado":"Agotado","comentario":""}
 ]
+
