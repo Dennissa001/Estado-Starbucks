@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from utils import (
     load_data, save_data, load_users, authenticate,
     add_employee_entry, filter_data, compute_kpis,
-    get_alerts, generate_csv_report_by_sede
+    get_alerts, generate_csv_report_by_sede,
+    generate_pdf_report     # ← IMPORTACIÓN DEL PDF
 )
 
 st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
@@ -144,8 +145,8 @@ def admin_view(user):
 
     st.markdown("---")
 
-    # ------------------ NUEVA GRÁFICA SEMANAL ------------------
-    st.subheader("Tendencia semanal del estrés (fechas de la semana)")
+    # ------------------ GRÁFICA SEMANAL ------------------
+    st.subheader("Tendencia semanal del estrés")
 
     if filtered:
         df_all = pd.DataFrame(filtered)
@@ -154,7 +155,6 @@ def admin_view(user):
             df_all["fecha_dt"] = pd.to_datetime(df_all["fecha"])
 
             max_date = df_all["fecha_dt"].max()
-
             week_start = (max_date - pd.Timedelta(days=max_date.weekday())).normalize()
             week_end = week_start + pd.Timedelta(days=6)
 
@@ -176,16 +176,15 @@ def admin_view(user):
                 plt.xticks(rotation=45)
                 st.pyplot(figw)
             else:
-                st.info("No hay datos en la semana más reciente.")
+                st.info("No hay datos en la semana actual.")
         else:
             st.info("No hay fechas disponibles.")
     else:
         st.info("Activa 'Ver todo el historial' para ver la tendencia.")
 
     st.markdown("---")
-    # -------------------------------------------------------------
 
-    # Pie chart
+    # ---------------- PIE CHART ----------------
     st.subheader("Distribución del estado emocional (pie chart)")
     if filtered:
         df_em = pd.DataFrame(filtered)
@@ -202,9 +201,10 @@ def admin_view(user):
 
     st.markdown("---")
 
-    # Exportar CSV
+    # ----------- EXPORTAR CSV POR SEDE -------------
     st.subheader("Exportar CSV por sede")
     sedes_unicas = sorted(list({d.get("sede", "") for d in data}))
+
     for s in sedes_unicas:
         if st.button(f"Generar CSV — {s}"):
             csv_bytes = generate_csv_report_by_sede(data, s)
@@ -213,6 +213,20 @@ def admin_view(user):
                 data=csv_bytes,
                 file_name=f"reporte_{s}.csv",
                 mime="text/csv"
+            )
+
+    # ----------- EXPORTAR PDF GENERAL -------------
+    st.markdown("---")
+    st.subheader("Exportar PDF — Todas las sedes")
+
+    if st.button("Generar PDF general"):
+        pdf_path = generate_pdf_report(data)
+        with open(pdf_path, "rb") as f:
+            st.download_button(
+                label="Descargar reporte PDF",
+                data=f,
+                file_name="reporte_general.pdf",
+                mime="application/pdf"
             )
 
     if st.sidebar.button("Cerrar sesión"):
@@ -231,3 +245,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
