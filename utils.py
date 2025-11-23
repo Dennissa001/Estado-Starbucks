@@ -4,14 +4,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 from io import StringIO
-
-# PDF
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from reportlab.lib.units import inch
 import tempfile
 
-# ----- IO -----
+# ---------- IO ----------
 def load_data(path="data.json"):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -30,14 +27,14 @@ def load_users(path="users.json"):
     except Exception:
         return []
 
-# ----- AUTH -----
+# ---------- AUTH ----------
 def authenticate(username, password, users):
     for u in users:
         if u.get("username") == username and u.get("password") == password:
             return u
     return None
 
-# ----- ADD ENTRY -----
+# ---------- ADD ENTRY ----------
 def add_employee_entry(path, user, fecha, hora_inicio, hora_salida, descanso_min, estres, estado, comentario=""):
     data = load_data(path)
     # hora_inicio/hora_salida may be time objects or strings
@@ -63,23 +60,24 @@ def add_employee_entry(path, user, fecha, hora_inicio, hora_salida, descanso_min
     data.append(entry)
     save_data(path, data)
 
-# ----- FILTER SAFE -----
+# ---------- FILTER ----------
 def filter_data(data, fecha=None, sede=None):
     # data is list[dict]
     res = data
     if fecha:
-        res = [d for d in res if d.get("fecha") == fecha]
-    if sede:
+        # accept date or string
+        s = fecha if isinstance(fecha, str) else fecha.strftime("%Y-%m-%d")
+        res = [d for d in res if d.get("fecha") == s]
+    if sede and sede != "Todas":
         res = [d for d in res if d.get("sede") == sede]
     return res
 
-# ----- ALERTAS ORDENADAS -----
+# ---------- ALERTAS ----------
 def get_alerts(data):
     alerts = []
     if not data:
         return alerts
     df = pd.DataFrame(data)
-    # ensure columns
     if "sede" not in df.columns:
         return alerts
     df = df.sort_values(by=["sede", "fecha", "nombre"])
@@ -90,19 +88,19 @@ def get_alerts(data):
         estres = row.get("estres", 0)
         descanso = row.get("descanso", 0)
         estado = row.get("estado", "")
-        # Estrés alto
-        if int(estres) >= 8:
-            alerts.append({"sede": sede, "nombre": nombre, "motivo": "Estrés muy alto (>=8)", "estres": estres, "fecha": fecha})
-        # Descanso insuficiente (<45 min)
+        try:
+            if int(estres) >= 8:
+                alerts.append({"sede": sede, "nombre": nombre, "motivo": "Estrés muy alto (>=8)", "estres": estres, "fecha": fecha})
+        except:
+            pass
         try:
             if int(descanso) < 45:
                 alerts.append({"sede": sede, "nombre": nombre, "motivo": f"Descanso insuficiente ({descanso} min)", "estres": estres, "fecha": fecha})
-        except Exception:
+        except:
             pass
-        # Estado emocional crítico
         if str(estado).lower() in ["estresado", "agotado", "estresado 😣", "agotado 😫"]:
             alerts.append({"sede": sede, "nombre": nombre, "motivo": f"Estado emocional: {estado}", "estres": estres, "fecha": fecha})
-    # dedupe exact duplicates
+    # dedupe
     seen = set()
     uniq = []
     for a in alerts:
@@ -112,155 +110,173 @@ def get_alerts(data):
             uniq.append(a)
     return uniq
 
-# ----- KPIS y GRÁFICOS -----
+# ---------- KPIS y GRÁFICOS ----------
 def compute_kpis(data):
     if not data:
-        return {
-            "estres_promedio": 0.0,
-            "pct_descanso": 0.0,
-            "alertas_count": 0,
-            "fig_week": None,
-            "pie_estado": None,
-            "fig_semana": None
-        }
+        return {"estres_promedio": 0.0, "pct_descanso": 0.0, "alertas_count": 0, "pie_estado": None, "fig_week": None}
     df = pd.DataFrame(data)
-    # convert types
-    df["estres"] = pd.to_numeric(df["estres"], errors="coerce").fillna(0)
-    df["descanso"] = pd.to_numeric(df["descanso"], errors="coerce").fillna(0)
-    # KPIs
-    estres_prom = float(df["estres"].mean())
-    pct_descanso = float((df["descanso"] >= 45).mean() * 100)
-    alertas = get_alerts(data)
-    alert_count = len(alertas)
-    # Pie chart (estado)
+    df["estres"] = pd.to_numeric(df.get("estres", 0), errors="coerce").fillna(0)
+    df["descanso"] = pd.to_numeric(df.get("descanso", 0), errors="coerce").fillna(0)
+    estres_prom = float(df["estres"].mean()) if not df.empty else 0.0
+    pct_desc = float((df["descanso"] >= 45).mean() * 100) if not df.empty else 0.0
+    alert_count = len(get_alerts(data))
+    # pie
     fig_pie = None
     try:
         if "estado" in df.columns and not df["estado"].isna().all():
             counts = df["estado"].value_counts()
-            fig_pie, axp = plt.subplots(figsize=(4,4))
-            axp.pie(counts.values, labels=counts.index, autopct="%1.1f%%", startangle=140)
-            axp.set_title("Estado emocional")
-    except Exception:
+            fig_pie, ax = plt.subplots(figsize=(4,4))
+            ax.pie(counts.values, labels=counts.index, autopct="%1.1f%%")
+            ax.set_title("Estado emocional")
+    except:
         fig_pie = None
-    # Weekly trend: last week by max date in data
+    # weekly
     fig_week = None
     try:
         if "fecha" in df.columns:
-            df["fecha_dt"] = pd.to_datetime(df["fecha"])
+            df["fecha_dt"] = pd.to_datetime(df["fecha"], errors="coerce")
             max_date = df["fecha_dt"].max()
             week_start = (max_date - pd.Timedelta(days=max_date.weekday())).normalize()
             week_end = week_start + pd.Timedelta(days=6)
-            mask = (df["fecha_dt"] >= week_start) & (df["fecha_dt"] <= week_end)
-            df_week = df.loc[mask]
-            if not df_week.empty:
-                series = df_week.groupby(df_week["fecha_dt"].dt.date)["estres"].mean().reindex(
-                    pd.date_range(week_start.date(), week_end.date(), freq="D").date, fill_value=0)
+            dfw = df[(df["fecha_dt"] >= week_start) & (df["fecha_dt"] <= week_end)]
+            if not dfw.empty:
+                series = dfw.groupby(dfw["fecha_dt"].dt.date)["estres"].mean()
                 fig_week, axw = plt.subplots(figsize=(8,3))
                 axw.bar([d.strftime("%Y-%m-%d") for d in series.index], series.values)
                 axw.set_title("Estrés promedio por día (última semana)")
                 axw.set_xlabel("Fecha")
                 axw.set_ylabel("Estrés promedio")
                 plt.xticks(rotation=45)
-    except Exception:
+    except:
         fig_week = None
-    return {
-        "estres_promedio": estres_prom,
-        "pct_descanso": pct_descanso,
-        "alertas_count": alert_count,
-        "pie_estado": fig_pie,
-        "fig_week": fig_week
-    }
+    return {"estres_promedio": estres_prom, "pct_descanso": pct_desc, "alertas_count": alert_count, "pie_estado": fig_pie, "fig_week": fig_week}
 
-# ----- CSV por sede (ordenado) -----
-def generate_csv_report_by_sede(data, sede):
-    if not data:
-        return "".encode("utf-8")
+# ---------- PDF por SEDE (registros + alertas) ----------
+def generate_pdf_by_sede(data, sede):
+    """Genera PDF con registros + alertas de la sede"""
     df = pd.DataFrame([d for d in data if d.get("sede") == sede])
-    if df.empty:
-        return "".encode("utf-8")
-    # ensure columns
-    cols = ["sede","fecha","nombre","hora_inicio","hora_salida","descanso","estres","estado","comentario"]
-    for c in cols:
-        if c not in df.columns:
-            df[c] = ""
-    df = df[cols]
-    df = df.sort_values(by=["sede","fecha","nombre"])
-    buf = StringIO()
-    df.to_csv(buf, index=False)
-    return buf.getvalue().encode("utf-8")
-
-# --------------------------------------------------------
-# --------  NUEVO: GENERADOR DE PDF COMPLETO -------------
-# --------------------------------------------------------
-
-def generate_pdf_report(data):
-    """Genera un PDF profesional con KPIs, gráficos y resumen total."""
+    alerts = [a for a in get_alerts(data) if a["sede"] == sede]
 
     temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     c = canvas.Canvas(temp_pdf.name, pagesize=letter)
+    x_margin = 40
+    y = 750
 
-    # Título
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(x_margin, y, f"Reporte por sede — {sede}")
+    y -= 20
+    c.setFont("Helvetica", 11)
+    c.drawString(x_margin, y, f"Fecha generación: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    y -= 20
+    c.line(x_margin, y, 560, y)
+    y -= 20
+
+    # Registros
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "Registros")
+    y -= 18
+    c.setFont("Helvetica", 10)
+    if df.empty:
+        c.drawString(x_margin, y, "No hay registros.")
+        y -= 20
+    else:
+        df = df.sort_values(by=["fecha", "nombre"])
+        for _, row in df.iterrows():
+            line = f"{row.get('fecha','')} | {row.get('nombre','')} | {row.get('hora_inicio','')}-{row.get('hora_salida','')} | Desc: {row.get('descanso','')} | Estres: {row.get('estres','')} | {row.get('estado','')}"
+            c.drawString(x_margin, y, line[:120])
+            y -= 14
+            if y < 80:
+                c.showPage()
+                y = 750
+
+    y -= 10
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "Alertas")
+    y -= 18
+    c.setFont("Helvetica", 10)
+    if not alerts:
+        c.drawString(x_margin, y, "No hay alertas.")
+        y -= 20
+    else:
+        for a in alerts:
+            txt = f"{a.get('fecha','')} — {a.get('nombre','')} — {a.get('motivo','')} (estrés {a.get('estres','')})"
+            c.drawString(x_margin, y, txt[:120])
+            y -= 14
+            if y < 80:
+                c.showPage()
+                y = 750
+
+    c.showPage()
+    c.save()
+    return temp_pdf.name
+
+# ---------- PDF general (KPIs + gráficas + resumen) ----------
+def generate_pdf_report(data):
+    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    c = canvas.Canvas(temp_pdf.name, pagesize=letter)
+    x_margin = 40
+    y = 760
+
     c.setFont("Helvetica-Bold", 18)
-    c.drawString(40, 750, "Reporte general — Bienestar Starbucks")
-    c.setFont("Helvetica", 12)
-    c.drawString(40, 735, "Incluye todas las sedes y todos los registros")
-    c.line(40, 730, 560, 730)
+    c.drawString(x_margin, y, "Reporte general — Bienestar Starbucks")
+    y -= 30
 
     df = pd.DataFrame(data)
+    c.setFont("Helvetica", 11)
+    if df.empty:
+        c.drawString(x_margin, y, "No hay datos disponibles.")
+        c.showPage()
+        c.save()
+        return temp_pdf.name
 
     # KPIs
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(40, 710, "KPIs generales")
+    df["estres"] = pd.to_numeric(df.get("estres", 0), errors="coerce").fillna(0)
+    df["descanso"] = pd.to_numeric(df.get("descanso", 0), errors="coerce").fillna(0)
+    estres_prom = df["estres"].mean()
+    pct_desc = (df["descanso"] >= 45).mean() * 100
 
-    if not df.empty:
-        estres_prom = df["estres"].mean()
-        pct_desc = (df["descanso"] >= 45).mean() * 100
+    c.drawString(x_margin, y, f"Estrés promedio: {estres_prom:.2f}")
+    y -= 16
+    c.drawString(x_margin, y, f"% descansos ≥ 45 min: {pct_desc:.1f}%")
+    y -= 24
 
-        c.setFont("Helvetica", 12)
-        c.drawString(40, 690, f"• Estrés promedio: {estres_prom:.2f}")
-        c.drawString(40, 675, f"• % descansos ≥ 45 min: {pct_desc:.1f}%")
-    else:
-        c.drawString(40, 690, "No hay datos disponibles.")
-
-    # ----------- GRÁFICA SEMANAL --------------
-    if not df.empty:
-        df["fecha_dt"] = pd.to_datetime(df["fecha"])
+    # Gráfica semanal (guardar imagen temporal y pegar)
+    try:
+        df["fecha_dt"] = pd.to_datetime(df["fecha"], errors="coerce")
         max_date = df["fecha_dt"].max()
         week_start = (max_date - pd.Timedelta(days=max_date.weekday())).normalize()
         week_end = week_start + pd.Timedelta(days=6)
-
-        df_week = df[(df["fecha_dt"] >= week_start) & (df["fecha_dt"] <= week_end)]
-
-        if not df_week.empty:
-            series = df_week.groupby(df_week["fecha_dt"].dt.date)["estres"].mean()
-
-            fig, ax = plt.subplots(figsize=(4,3))
+        dfw = df[(df["fecha_dt"] >= week_start) & (df["fecha_dt"] <= week_end)]
+        if not dfw.empty:
+            series = dfw.groupby(dfw["fecha_dt"].dt.date)["estres"].mean()
+            fig, ax = plt.subplots(figsize=(6,3))
             ax.bar(series.index.astype(str), series.values)
             ax.set_title("Estrés semanal")
             plt.xticks(rotation=45)
-
             img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
             plt.savefig(img.name, bbox_inches="tight")
             plt.close()
+            c.drawImage(img.name, x_margin, y-200, width=500, height=180)
+            y -= 220
+    except:
+        pass
 
-            c.drawImage(img.name, 40, 430, width=500, height=230)
+    # Pie chart
+    try:
+        if "estado" in df.columns:
+            counts = df["estado"].value_counts()
+            fig2, ax2 = plt.subplots(figsize=(4,3))
+            ax2.pie(counts.values, labels=counts.index, autopct="%1.1f%%")
+            ax2.set_title("Estados emocionales")
+            img2 = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            plt.savefig(img2.name, bbox_inches="tight")
+            plt.close()
+            c.drawImage(img2.name, x_margin, y-200, width=300, height=180)
+            y -= 200
+    except:
+        pass
 
-    # -------- PIE CHART ESTADO EMOCIONAL --------
-    if not df.empty and "estado" in df.columns:
-        counts = df["estado"].value_counts()
-
-        fig2, ax2 = plt.subplots(figsize=(4,3))
-        ax2.pie(counts.values, labels=counts.index, autopct="%1.1f%%")
-        ax2.set_title("Estado emocional")
-
-        img2 = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-        plt.savefig(img2.name, bbox_inches="tight")
-        plt.close()
-
-        c.drawImage(img2.name, 40, 180, width=450, height=200)
-
-    # Final PDF
     c.showPage()
     c.save()
-
     return temp_pdf.name
+
