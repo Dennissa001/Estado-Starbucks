@@ -5,6 +5,12 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from io import StringIO
 
+# PDF
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+import tempfile
+
 # ----- IO -----
 def load_data(path="data.json"):
     try:
@@ -182,3 +188,79 @@ def generate_csv_report_by_sede(data, sede):
     buf = StringIO()
     df.to_csv(buf, index=False)
     return buf.getvalue().encode("utf-8")
+
+# --------------------------------------------------------
+# --------  NUEVO: GENERADOR DE PDF COMPLETO -------------
+# --------------------------------------------------------
+
+def generate_pdf_report(data):
+    """Genera un PDF profesional con KPIs, gráficos y resumen total."""
+
+    temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    c = canvas.Canvas(temp_pdf.name, pagesize=letter)
+
+    # Título
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(40, 750, "Reporte general — Bienestar Starbucks")
+    c.setFont("Helvetica", 12)
+    c.drawString(40, 735, "Incluye todas las sedes y todos los registros")
+    c.line(40, 730, 560, 730)
+
+    df = pd.DataFrame(data)
+
+    # KPIs
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, 710, "KPIs generales")
+
+    if not df.empty:
+        estres_prom = df["estres"].mean()
+        pct_desc = (df["descanso"] >= 45).mean() * 100
+
+        c.setFont("Helvetica", 12)
+        c.drawString(40, 690, f"• Estrés promedio: {estres_prom:.2f}")
+        c.drawString(40, 675, f"• % descansos ≥ 45 min: {pct_desc:.1f}%")
+    else:
+        c.drawString(40, 690, "No hay datos disponibles.")
+
+    # ----------- GRÁFICA SEMANAL --------------
+    if not df.empty:
+        df["fecha_dt"] = pd.to_datetime(df["fecha"])
+        max_date = df["fecha_dt"].max()
+        week_start = (max_date - pd.Timedelta(days=max_date.weekday())).normalize()
+        week_end = week_start + pd.Timedelta(days=6)
+
+        df_week = df[(df["fecha_dt"] >= week_start) & (df["fecha_dt"] <= week_end)]
+
+        if not df_week.empty:
+            series = df_week.groupby(df_week["fecha_dt"].dt.date)["estres"].mean()
+
+            fig, ax = plt.subplots(figsize=(4,3))
+            ax.bar(series.index.astype(str), series.values)
+            ax.set_title("Estrés semanal")
+            plt.xticks(rotation=45)
+
+            img = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            plt.savefig(img.name, bbox_inches="tight")
+            plt.close()
+
+            c.drawImage(img.name, 40, 430, width=500, height=230)
+
+    # -------- PIE CHART ESTADO EMOCIONAL --------
+    if not df.empty and "estado" in df.columns:
+        counts = df["estado"].value_counts()
+
+        fig2, ax2 = plt.subplots(figsize=(4,3))
+        ax2.pie(counts.values, labels=counts.index, autopct="%1.1f%%")
+        ax2.set_title("Estado emocional")
+
+        img2 = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        plt.savefig(img2.name, bbox_inches="tight")
+        plt.close()
+
+        c.drawImage(img2.name, 40, 180, width=450, height=200)
+
+    # Final PDF
+    c.showPage()
+    c.save()
+
+    return temp_pdf.name
