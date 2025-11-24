@@ -234,5 +234,41 @@ def generate_pdf_report_by_sede(data, sede):
     c.line(40, 744, 560, 744)
 
     if df.empty:
+        c.setFont("Helvetica", 12)
+        c.drawString(40, 720, "No hay datos para esta sede.")
+        c.showPage()
+        c.save()
+        return tmp.name
+
+    estres_prom = df["estres"].mean() if "estres" in df.columns else 0
+    pct_desc = (df["descanso"] >= 45).mean() * 100 if "descanso" in df.columns else 0
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, 720, "KPIs:")
+    c.setFont("Helvetica", 12)
+    c.drawString(40, 700, f"• Estrés promedio: {estres_prom:.2f}")
+    c.drawString(40, 685, f"• % descansos ≥ 45 min: {pct_desc:.1f}%")
+
+    # small table
+    c.setFont("Helvetica-Bold", 12)
+    y = 650
+    c.drawString(40, y, "Fecha")
+    c.drawString(120, y, "Nombre")
+    c.drawString(300, y, "Estrés")
+    y -= 15
+    c.setFont("Helvetica", 10)
+    for i, row in df.head(30).iterrows():
+        c.drawString(40, y, str(row.get("fecha", "")))
+        c.drawString(120, y, str(row.get("nombre", ""))[:30])
+        c.drawString(300, y, str(row.get("estres", "")))
+        y -= 12
+        if y < 60:
+            c.showPage()
+            y = 750
+
+    c.showPage()
+    c.save()
+    return tmp.name
         c.setFo
+
 
