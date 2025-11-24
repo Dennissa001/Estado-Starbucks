@@ -8,9 +8,9 @@ from reportlab.pdfgen import canvas
 import matplotlib.pyplot as plt
 import os
 
-# -------------------------
-# JSON load/save helpers
-# -------------------------
+# ==========================================
+# JSON LOAD / SAVE
+# ==========================================
 def load_data(path="data.json"):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -35,14 +35,15 @@ def authenticate(username, password, users):
             return u
     return None
 
-# -------------------------
-# Employee entries
-# -------------------------
+
+# ==========================================
+# EMPLOYEE ENTRIES
+# ==========================================
 def add_employee_entry(path, user, fecha, hora_inicio, hora_salida, descanso, estres, estado, comentario):
     data = load_data(path)
 
     entry = {
-        "nombre": user.get("username", user.get("nombre", "")),
+        "nombre": user.get("nombre", user.get("username", "")),
         "sede": user.get("sede", ""),
         "fecha": fecha,
         "hora_inicio": hora_inicio.strftime("%H:%M"),
@@ -52,12 +53,14 @@ def add_employee_entry(path, user, fecha, hora_inicio, hora_salida, descanso, es
         "estado": estado,
         "comentario": comentario.strip() if comentario else ""
     }
+
     data.append(entry)
     save_data(path, data)
 
-# -------------------------
-# Filters / alerts / dataframe
-# -------------------------
+
+# ==========================================
+# FILTERS / ALERTS / ORDERED DF
+# ==========================================
 def filter_data(data, fecha=None, sede=None):
     filtered = data
     if fecha:
@@ -86,21 +89,10 @@ def get_alerts(data):
             })
     return alerts
 
-def get_dataframe_ordered(data):
-    if not data:
-        return pd.DataFrame()
-    df = pd.DataFrame(data)
-    cols = ["sede","fecha","nombre","hora_inicio","hora_salida","descanso","estres","estado","comentario"]
-    for c in cols:
-        if c not in df.columns:
-            df[c] = ""
-    df = df[cols]
-    df = df.sort_values(by=["sede","fecha","nombre"])
-    return df
 
-# -------------------------
-# KPIs and charts
-# -------------------------
+# ==========================================
+# KPIS & GRÁFICAS
+# ==========================================
 def compute_kpis(data):
     if not data:
         return {
@@ -112,53 +104,52 @@ def compute_kpis(data):
         }
 
     df = pd.DataFrame(data)
-    # Ensure numeric types
-    if "estres" in df.columns:
-        df["estres"] = pd.to_numeric(df["estres"], errors="coerce").fillna(0)
-    else:
-        df["estres"] = 0
-    if "descanso" in df.columns:
-        df["descanso"] = pd.to_numeric(df["descanso"], errors="coerce").fillna(0)
-    else:
-        df["descanso"] = 0
+    df["estres"] = pd.to_numeric(df.get("estres", 0), errors="coerce").fillna(0)
+    df["descanso"] = pd.to_numeric(df.get("descanso", 0), errors="coerce").fillna(0)
 
     estres_prom = df["estres"].mean()
     pct_desc = (df["descanso"] >= 45).mean() * 100
-
     alerts = get_alerts(data)
 
-    # --- Figura semanal (promedio estrés por fecha) ---
+    # =======================
+    # FIGURA: estrés últimos 7 días
+    # =======================
     fig_week = None
     try:
         df_dates = df.copy()
-        if "fecha" in df_dates.columns:
-            df_dates["fecha"] = pd.to_datetime(df_dates["fecha"], errors="coerce")
-            # Keep last 7 days from max date in data
+        df_dates["fecha"] = pd.to_datetime(df_dates["fecha"], errors="coerce")
+        df_dates = df_dates.dropna(subset=["fecha"])
+
+        if not df_dates.empty:
             max_date = df_dates["fecha"].max()
             start_date = max_date - pd.Timedelta(days=6)
             df_week = df_dates[df_dates["fecha"] >= start_date]
+
             if not df_week.empty:
                 agg = df_week.groupby(df_week["fecha"].dt.date)["estres"].mean().sort_index()
+
                 fig_week, ax = plt.subplots()
                 ax.bar(agg.index.astype(str), agg.values)
                 ax.set_xlabel("Fecha")
                 ax.set_ylabel("Promedio nivel de estrés")
-                ax.set_title("Promedio de estrés por día (últimos 7 días)")
+                ax.set_title("Estrés promedio (últimos 7 días)")
                 plt.xticks(rotation=45)
                 plt.tight_layout()
+
     except Exception:
         fig_week = None
 
-    # --- Pie estado ---
+    # =======================
+    # FIGURA: estados emocionales
+    # =======================
     pie_estado = None
     try:
-        if "estado" in df.columns:
-            counts = df["estado"].value_counts()
-            if not counts.empty:
-                pie_estado, ax2 = plt.subplots()
-                ax2.pie(counts.values, labels=counts.index, autopct="%1.1f%%")
-                ax2.set_title("Estado emocional")
-                plt.tight_layout()
+        counts = df["estado"].value_counts()
+        if not counts.empty:
+            pie_estado, ax2 = plt.subplots()
+            ax2.pie(counts.values, labels=counts.index, autopct="%1.1f%%")
+            ax2.set_title("Estado emocional")
+            plt.tight_layout()
     except Exception:
         pie_estado = None
 
@@ -170,11 +161,11 @@ def compute_kpis(data):
         "pie_estado": pie_estado
     }
 
-# -------------------------
-# PDF generation (returns file path)
-# -------------------------
+
+# ==========================================
+# PDF REPORTS
+# ==========================================
 def generate_pdf_report(data):
-    # create temp file
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     c = canvas.Canvas(tmp.name, pagesize=letter)
 
@@ -190,9 +181,8 @@ def generate_pdf_report(data):
         return tmp.name
 
     df = pd.DataFrame(data)
-    # KPIs
-    estres_prom = df["estres"].mean() if "estres" in df.columns else 0
-    pct_desc = (df["descanso"] >= 45).mean() * 100 if "descanso" in df.columns else 0
+    estres_prom = df["estres"].mean()
+    pct_desc = (df["descanso"] >= 45).mean() * 100
 
     c.setFont("Helvetica-Bold", 14)
     c.drawString(40, 720, "KPIs generales:")
@@ -200,7 +190,7 @@ def generate_pdf_report(data):
     c.drawString(40, 700, f"• Estrés promedio: {estres_prom:.2f}")
     c.drawString(40, 685, f"• % descansos ≥ 45 min: {pct_desc:.1f}%")
 
-    # Add simple table header (first 20 rows)
+    # Tabla
     c.setFont("Helvetica-Bold", 12)
     y = 650
     c.drawString(40, y, "Fecha")
@@ -208,13 +198,15 @@ def generate_pdf_report(data):
     c.drawString(260, y, "Nombre")
     c.drawString(380, y, "Estrés")
     y -= 15
+
     c.setFont("Helvetica", 10)
-    for i, row in df.head(20).iterrows():
+    for _, row in df.head(20).iterrows():
         c.drawString(40, y, str(row.get("fecha", "")))
-        c.drawString(120, y, str(row.get("sede", ""))[:20])
+        c.drawString(120, y, str(row.get("sede", "")))
         c.drawString(260, y, str(row.get("nombre", ""))[:20])
         c.drawString(380, y, str(row.get("estres", "")))
         y -= 12
+
         if y < 60:
             c.showPage()
             y = 750
@@ -222,6 +214,7 @@ def generate_pdf_report(data):
     c.showPage()
     c.save()
     return tmp.name
+
 
 def generate_pdf_report_by_sede(data, sede):
     df = pd.DataFrame([d for d in data if d.get("sede") == sede])
@@ -240,8 +233,8 @@ def generate_pdf_report_by_sede(data, sede):
         c.save()
         return tmp.name
 
-    estres_prom = df["estres"].mean() if "estres" in df.columns else 0
-    pct_desc = (df["descanso"] >= 45).mean() * 100 if "descanso" in df.columns else 0
+    estres_prom = df["estres"].mean()
+    pct_desc = (df["descanso"] >= 45).mean() * 100
 
     c.setFont("Helvetica-Bold", 14)
     c.drawString(40, 720, "KPIs:")
@@ -249,19 +242,20 @@ def generate_pdf_report_by_sede(data, sede):
     c.drawString(40, 700, f"• Estrés promedio: {estres_prom:.2f}")
     c.drawString(40, 685, f"• % descansos ≥ 45 min: {pct_desc:.1f}%")
 
-    # small table
     c.setFont("Helvetica-Bold", 12)
     y = 650
     c.drawString(40, y, "Fecha")
-    c.drawString(120, y, "Nombre")
-    c.drawString(300, y, "Estrés")
+    c.drawString(160, y, "Nombre")
+    c.drawString(350, y, "Estrés")
     y -= 15
+
     c.setFont("Helvetica", 10)
-    for i, row in df.head(30).iterrows():
+    for _, row in df.head(30).iterrows():
         c.drawString(40, y, str(row.get("fecha", "")))
-        c.drawString(120, y, str(row.get("nombre", ""))[:30])
-        c.drawString(300, y, str(row.get("estres", "")))
+        c.drawString(160, y, str(row.get("nombre", ""))[:25])
+        c.drawString(350, y, str(row.get("estres", "")))
         y -= 12
+
         if y < 60:
             c.showPage()
             y = 750
@@ -269,6 +263,3 @@ def generate_pdf_report_by_sede(data, sede):
     c.showPage()
     c.save()
     return tmp.name
-        c.setFo
-
-
