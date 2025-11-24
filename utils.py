@@ -164,12 +164,32 @@ def _safe_get_mean(df, col):
     return pd.to_numeric(df[col], errors="coerce").fillna(0).mean()
 
 
+def generate_pdf_full(data):
+    return generate_pdf_report(data)
+
+
+def generate_pdf_alerts(alerts):
+    return generate_pdf_report(alerts)
+
+
+def generate_pdf_by_sede(data, sede):
+    return generate_pdf_report_by_sede(data, sede)
+
+
+def generate_pdf_personal(data):
+    return generate_pdf_report(data)
+
+
+def generate_pdf_charts(data):
+    return generate_pdf_report(data)
+
+
 def generate_pdf_report(data):
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     c = canvas.Canvas(tmp.name, pagesize=letter)
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(40, 750, "Reporte Starbucks — Datos filtrados")
+    c.drawString(40, 750, "Reporte Starbucks — Datos")
     c.line(40, 745, 560, 745)
 
     if not data:
@@ -179,7 +199,6 @@ def generate_pdf_report(data):
 
     df = pd.DataFrame(data)
     estres_prom = _safe_get_mean(df, "estres")
-
     desc_df = pd.to_numeric(df.get("descanso", 0), errors="coerce").fillna(0)
     pct_desc = (desc_df >= 45).mean() * 100
 
