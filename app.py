@@ -6,7 +6,7 @@ import pandas as pd
 from utils import (
     load_data, load_users, authenticate,
     add_employee_entry, filter_data, compute_kpis,
-    get_alerts, generate_pdf_by_sede, generate_pdf_report
+    get_alerts, generate_pdf_report_by_sede, generate_pdf_report
 )
 
 st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
@@ -31,7 +31,6 @@ def login_view():
     if st.button("Ingresar"):
         user = authenticate(username, password, users)
         if user:
-            # normalize role key (support "role" or "rol")
             if "role" not in user:
                 user["role"] = user.get("rol", "empleado")
             st.session_state.user = user
@@ -83,10 +82,11 @@ def employee_view(user):
     data = load_data(DATA_PATH)
     nombre_usuario = user.get("nombre", user.get("username"))
     mis_registros = [r for r in data if r.get("nombre") == nombre_usuario]
+    
     if mis_registros:
         df_mis = pd.DataFrame(mis_registros).sort_values(by=["fecha"], ascending=False)
         st.dataframe(df_mis, use_container_width=True, height=300)
-        # permitir descargar PDF personal (usa generate_pdf_report para lista)
+
         if st.button("📄 Descargar PDF — Mis registros"):
             pdf_path = generate_pdf_report(mis_registros)
             with open(pdf_path, "rb") as f:
@@ -102,23 +102,21 @@ def employee_view(user):
 def admin_view(user):
     st.header("Panel Administrador — Bienestar y cumplimiento")
 
-    # Cargamos datos
     data = load_data(DATA_PATH)
 
     if not data:
-        st.warning("No hay registros aún. Puedes usar la data de ejemplo o pedir pruebas.")
+        st.warning("No hay registros aún.")
         if st.button("Cerrar sesión"):
             logout()
         return
 
-    # Sidebar con filtros (se mantiene)
+    # Sidebar
     st.sidebar.title("Filtros")
     ver_todo = st.sidebar.checkbox("Ver todo el historial", value=False)
     sede_options = ["Todas"] + sorted(list({d.get("sede", "") for d in data if d.get("sede","")}))
     sede_sel = st.sidebar.selectbox("Sede", sede_options)
     fecha_sel = st.sidebar.date_input("Filtrar por fecha (opcional)", value=None)
 
-    # Aplicar filtros
     if ver_todo:
         filtered = data.copy()
     else:
@@ -126,10 +124,9 @@ def admin_view(user):
         sede_filter = None if sede_sel == "Todas" else sede_sel
         filtered = filter_data(data, fecha=fecha_filter, sede=sede_filter)
 
-    # Pestañas arriba - REGISTROS | ALERTAS | GRAFICAS | REPORTES
     tab_reg, tab_alert, tab_graph, tab_report = st.tabs(["📋 Registros", "🚨 Alertas", "📊 Gráficas", "📄 Reportes"])
 
-    # ----- TAB: REGISTROS -----
+    # ----- TAB REGISTROS -----
     with tab_reg:
         st.subheader("Registros (filtrados)")
         if not filtered:
@@ -140,18 +137,17 @@ def admin_view(user):
             cols_present = [c for c in cols if c in df_filtered.columns]
             st.dataframe(df_filtered[cols_present].sort_values(by=["sede","fecha","nombre"]), use_container_width=True, height=350)
 
-            # Descargar PDF con los registros filtrados (usa generate_pdf_report)
             if st.button("📄 Descargar PDF — Registros filtrados"):
                 pdf_path = generate_pdf_report(filtered)
                 with open(pdf_path, "rb") as f:
                     st.download_button("Descargar PDF (Registros filtrados)", f.read(), file_name="registros_filtrados.pdf", mime="application/pdf")
 
-    # ----- TAB: ALERTAS -----
+    # ----- TAB ALERTAS -----
     with tab_alert:
         st.subheader("Alertas ordenadas")
         alerts = get_alerts(filtered)
         if not alerts:
-            st.success("No se detectaron alertas para los filtros seleccionados 🎉")
+            st.success("No se detectaron alertas 🎉")
         else:
             df_alerts = pd.DataFrame(alerts)
             df_alerts = df_alerts[["sede","nombre","motivo","estres","fecha"]] if not df_alerts.empty else df_alerts
@@ -162,7 +158,7 @@ def admin_view(user):
                 with open(pdf_path, "rb") as f:
                     st.download_button("Descargar PDF (Alertas filtradas)", f.read(), file_name="alertas_filtradas.pdf", mime="application/pdf")
 
-    # ----- TAB: GRAFICAS -----
+    # ----- TAB GRAFICAS -----
     with tab_graph:
         st.subheader("KPIs y Gráficas")
         kpis = compute_kpis(filtered)
@@ -173,34 +169,27 @@ def admin_view(user):
         c3.metric("Alertas detectadas", kpis['alertas_count'])
 
         st.markdown("---")
-        # Mostrar gráficas si existen (compute_kpis devuelve figuras)
-        if kpis.get("fig_week"):
-            st.pyplot(kpis["fig_week"])
-        if kpis.get("pie_estado"):
-            st.pyplot(kpis["pie_estado"])
 
-        # Permitir descargar PDF general con gráficos
         if st.button("📄 Descargar PDF — General (KPIs + Gráficas)"):
-            pdf_path = generate_pdf_report(data)  # general con todos los datos
+            pdf_path = generate_pdf_report(data)
             with open(pdf_path, "rb") as f:
                 st.download_button("Descargar PDF general", f.read(), file_name="reporte_general.pdf", mime="application/pdf")
 
-    # ----- TAB: REPORTES -----
+    # ----- TAB REPORTES -----
     with tab_report:
         st.subheader("Reportes por sede (PDF)")
         sedes_unicas = sorted(list({d.get("sede", "") for d in data if d.get("sede","")}))
 
         if not sedes_unicas:
-            st.info("No hay sedes registradas en los datos.")
+            st.info("No hay sedes registradas.")
         else:
             for s in sedes_unicas:
                 st.write(f"**{s}**")
                 if st.button(f"📄 Generar PDF — {s}", key=f"pdf_sede_{s}"):
-                    pdf_path = generate_pdf_by_sede(data, s)
+                    pdf_path = generate_pdf_report_by_sede(data, s)
                     with open(pdf_path, "rb") as f:
                         st.download_button(f"Descargar PDF — {s}", f.read(), file_name=f"reporte_{s}.pdf", mime="application/pdf")
 
-    # Footer logout
     st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar sesión"):
         logout()
@@ -211,7 +200,6 @@ def main():
         login_view()
     else:
         user = st.session_state.user
-        # role must be "admin" or "empleado"
         role = user.get("role", "empleado")
         if role == "admin":
             admin_view(user)
