@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 from datetime import date
 import pandas as pd
@@ -12,6 +13,14 @@ st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
 
 DATA_PATH = "data.json"
 USERS_PATH = "users.json"
+
+# Safe rerun wrapper (evita AttributeError en entornos raros)
+def safe_rerun():
+    try:
+        st.experimental_rerun()
+    except Exception:
+        # si no está disponible, solo retornamos (evita crash)
+        return
 
 # ---------------- Session state ----------------
 if "user" not in st.session_state:
@@ -30,12 +39,13 @@ def login_view():
     if st.button("Ingresar"):
         user = authenticate(username, password, users)
         if user:
+            # normalize role key (support "role" or "rol")
             if "role" not in user:
                 user["role"] = user.get("rol", "empleado")
             st.session_state.user = user
             st.session_state.logged = True
             st.success(f"Bienvenido/a {user.get('nombre', user.get('username'))}")
-            st.experimental_rerun()
+            safe_rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
 
@@ -47,7 +57,7 @@ def logout():
     for k in ["user", "logged"]:
         if k in st.session_state:
             del st.session_state[k]
-    st.experimental_rerun()
+    safe_rerun()
 
 # ----------------- EMPLEADO VIEW -----------------
 def employee_view(user):
@@ -78,7 +88,7 @@ def employee_view(user):
             comentario
         )
         st.success("Registro guardado correctamente ✅")
-        st.experimental_rerun()
+        safe_rerun()
 
     st.markdown("---")
     st.subheader("Mis registros")
@@ -164,6 +174,7 @@ def admin_view(user):
             st.dataframe(df_alerts.sort_values(by=["sede","fecha","nombre"]), use_container_width=True, height=300)
 
             if st.button("📄 Descargar PDF — Alertas filtradas"):
+                # IMPORTANT: alerts entries might not have 'descanso' column; generate_pdf_report is robust now
                 pdf_path = generate_pdf_report(alerts)
                 with open(pdf_path, "rb") as f:
                     st.download_button("Descargar PDF (Alertas filtradas)", f.read(), file_name="alertas_filtradas.pdf", mime="application/pdf")
