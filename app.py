@@ -5,8 +5,11 @@ import pandas as pd
 
 from utils import (
     load_data, load_users, authenticate,
-    add_employee_entry, filter_data, compute_kpis,
-    get_alerts, generate_pdf_report_by_sede, generate_pdf_report
+    add_employee_entry, filter_data,
+    compute_kpis, get_alerts,
+    generate_pdf_full, generate_pdf_alerts,
+    generate_pdf_charts, generate_pdf_by_sede,
+    generate_pdf_personal
 )
 
 st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
@@ -14,52 +17,65 @@ st.set_page_config(page_title="Bienestar Starbucks", layout="wide")
 DATA_PATH = "data.json"
 USERS_PATH = "users.json"
 
-# Safe rerun wrapper (evita AttributeError en entornos raros)
+
+# ---------------------------------------------
+# MANEJO SEGURO DE RERUN
+# ---------------------------------------------
 def safe_rerun():
     try:
-        st.experimental_rerun()
-    except Exception:
-        # si no está disponible, solo retornamos (evita crash)
-        return
+        st.rerun()
+    except:
+        pass
 
-# ---------------- Session state ----------------
+
+# ---------------------------------------------
+# SESSION
+# ---------------------------------------------
 if "user" not in st.session_state:
     st.session_state.user = None
 if "logged" not in st.session_state:
     st.session_state.logged = False
 
-# ----------------- LOGIN VIEW -----------------
+
+# ---------------------------------------------
+# LOGIN
+# ---------------------------------------------
 def login_view():
     st.title("Bienestar Starbucks — Iniciar sesión")
+
     users = load_users(USERS_PATH)
 
     username = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
 
-    if st.button("Ingresar"):
+    if st.button("Ingresar", key="login_btn"):
         user = authenticate(username, password, users)
         if user:
-            # normalize role key (support "role" or "rol")
+            # normaliza "rol" ↔ "role"
             if "role" not in user:
                 user["role"] = user.get("rol", "empleado")
+
             st.session_state.user = user
             st.session_state.logged = True
-            st.success(f"Bienvenido/a {user.get('nombre', user.get('username'))}")
+            st.success(f"Bienvenido/a {user.get('nombre', username)}")
             safe_rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
 
-    st.markdown("---")
-    st.info("Usa un usuario del archivo users.json (admin o empleado).")
+    st.info("Inicia sesión usando un usuario del archivo users.json")
 
-# ----------------- LOGOUT -----------------
+
+# ---------------------------------------------
+# LOGOUT
+# ---------------------------------------------
 def logout():
-    for k in ["user", "logged"]:
-        if k in st.session_state:
-            del st.session_state[k]
+    st.session_state.clear()
     safe_rerun()
 
-# ----------------- EMPLEADO VIEW -----------------
+
+# ---------------------------------------------
+# VISTA EMPLEADO
+# ---------------------------------------------
 def employee_view(user):
     st.header("Registro de turno — Empleado")
     st.write(f"Sede: **{user.get('sede','(no definida)')}**")
@@ -70,118 +86,136 @@ def employee_view(user):
     hora_inicio = st.time_input("Hora de inicio")
     hora_salida = st.time_input("Hora de salida")
 
-    descanso_min = st.number_input("Minutos de descanso", min_value=0, max_value=240, value=45, step=5)
+    descanso_min = st.number_input("Minutos de descanso", min_value=0, max_value=240, value=45)
     estres = st.slider("Nivel de estrés (0-10)", min_value=0, max_value=10, value=5)
     estado = st.selectbox("¿Cómo te sientes hoy?", ["Feliz", "Tranquilo", "Normal", "Estresado", "Agotado"])
     comentario = st.text_area("Comentario (opcional)")
 
-    if st.button("Registrar"):
+    if st.button("Registrar", key="reg_employee"):
         add_employee_entry(
-            DATA_PATH,
-            user,
-            fecha_hoy,
-            hora_inicio,
-            hora_salida,
-            int(descanso_min),
-            int(estres),
-            estado,
-            comentario
+            DATA_PATH, user, fecha_hoy,
+            hora_inicio, hora_salida,
+            int(descanso_min), int(estres),
+            estado, comentario
         )
-        st.success("Registro guardado correctamente ✅")
+        st.success("Registro guardado correctamente")
         safe_rerun()
 
-    st.markdown("---")
+    # ----------------------------------------
+    # MIS REGISTROS
+    # ----------------------------------------
     st.subheader("Mis registros")
+
     data = load_data(DATA_PATH)
-    nombre_usuario = user.get("nombre", user.get("username"))
-    mis_registros = [r for r in data if r.get("nombre") == nombre_usuario]
+    nombre_u = user.get("nombre", user.get("username"))
+    mis_registros = [r for r in data if r.get("nombre") == nombre_u]
 
     if mis_registros:
-        df_mis = pd.DataFrame(mis_registros).sort_values(by=["fecha"], ascending=False)
-        st.dataframe(df_mis, use_container_width=True, height=300)
+        df = pd.DataFrame(mis_registros).sort_values("fecha", ascending=False)
+        st.dataframe(df, use_container_width=True, height=300)
 
-        # Descargar PDF con mis registros
-        if st.button("📄 Descargar PDF — Mis registros"):
-            pdf_path = generate_pdf_report(mis_registros)
-            with open(pdf_path, "rb") as f:
+        if st.button("📄 Descargar PDF — Mis registros", key="pdf_personal_btn"):
+            pdf = generate_pdf_personal(mis_registros)
+            with open(pdf, "rb") as f:
                 st.download_button(
-                    "Descargar PDF (Mis registros)",
+                    "Descargar PDF",
                     f.read(),
-                    file_name=f"mis_registros_{nombre_usuario}.pdf",
+                    file_name=f"mis_registros_{nombre_u}.pdf",
                     mime="application/pdf"
                 )
     else:
-        st.info("Aún no tienes registros guardados.")
+        st.info("Aún no tienes registros.")
 
     st.markdown("---")
-    if st.button("Cerrar sesión"):
+
+    if st.button("Cerrar sesión", key="logout_employee"):
         logout()
 
-# ----------------- ADMIN VIEW -----------------
+
+# ---------------------------------------------
+# VISTA ADMIN
+# ---------------------------------------------
 def admin_view(user):
-    st.header("Panel Administrador — Bienestar y cumplimiento")
+    st.header("Panel Administrador — Bienestar y Cumplimiento")
 
     data = load_data(DATA_PATH)
-
     if not data:
-        st.warning("No hay registros aún.")
-        if st.button("Cerrar sesión"):
+        st.warning("No hay registros todavía.")
+        if st.button("Cerrar sesión", key="logout_admin_empty"):
             logout()
         return
 
-    # Sidebar
+    # -----------------------------------------
+    # SIDEBAR
+    # -----------------------------------------
     st.sidebar.title("Filtros")
+
     ver_todo = st.sidebar.checkbox("Ver todo el historial", value=False)
-    sede_options = ["Todas"] + sorted(list({d.get("sede", "") for d in data if d.get("sede","")}))
-    sede_sel = st.sidebar.selectbox("Sede", sede_options)
+
+    sedes = ["Todas"] + sorted({d.get("sede","") for d in data})
+    sede_sel = st.sidebar.selectbox("Sede", sedes)
+
     fecha_sel = st.sidebar.date_input("Filtrar por fecha (opcional)", value=None)
 
-    # Aplicar filtros
+    # Aplicación de filtros
     if ver_todo:
-        filtered = data.copy()
+        filtered = data
     else:
         fecha_filter = None if fecha_sel is None else fecha_sel.strftime("%Y-%m-%d")
         sede_filter = None if sede_sel == "Todas" else sede_sel
         filtered = filter_data(data, fecha=fecha_filter, sede=sede_filter)
 
-    tab_reg, tab_alert, tab_graph, tab_report = st.tabs(["📋 Registros", "🚨 Alertas", "📊 Gráficas", "📄 Reportes"])
+    # -----------------------------------------
+    # TABS
+    # -----------------------------------------
+    tab_reg, tab_alert, tab_graph, tab_report = st.tabs([
+        "📋 Registros", "🚨 Alertas", "📊 Gráficas", "📄 Reportes"
+    ])
 
-    # TAB REGISTROS
+    # --- TAB REGISTROS ---
     with tab_reg:
-        st.subheader("Registros (filtrados)")
+        st.subheader("Registros filtrados")
         if not filtered:
-            st.info("No hay registros para los filtros aplicados.")
+            st.info("Sin resultados")
         else:
-            df_filtered = pd.DataFrame(filtered)
-            cols = ["sede", "fecha", "nombre", "hora_inicio", "hora_salida", "descanso", "estres", "estado", "comentario"]
-            cols_present = [c for c in cols if c in df_filtered.columns]
-            st.dataframe(df_filtered[cols_present].sort_values(by=["sede","fecha","nombre"]), use_container_width=True, height=350)
+            df = pd.DataFrame(filtered)
+            st.dataframe(df, use_container_width=True, height=350)
 
-            if st.button("📄 Descargar PDF — Registros filtrados"):
-                pdf_path = generate_pdf_report(filtered)
-                with open(pdf_path, "rb") as f:
-                    st.download_button("Descargar PDF (Registros filtrados)", f.read(), file_name="registros_filtrados.pdf", mime="application/pdf")
+            if st.button("📄 Descargar PDF — Registros filtrados", key="pdf_filtrado_btn"):
+                pdf = generate_pdf_full(filtered)
+                with open(pdf, "rb") as f:
+                    st.download_button(
+                        "Descargar PDF",
+                        f.read(),
+                        file_name="registros_filtrados.pdf",
+                        mime="application/pdf"
+                    )
 
-    # TAB ALERTAS
+    # --- TAB ALERTAS ---
     with tab_alert:
-        st.subheader("Alertas ordenadas")
         alerts = get_alerts(filtered)
+        st.subheader("Alertas detectadas")
+
         if not alerts:
-            st.success("No se detectaron alertas 🎉")
+            st.success("No se detectaron alertas")
         else:
-            df_alerts = pd.DataFrame(alerts)
-            df_alerts = df_alerts[["sede","nombre","motivo","estres","fecha"]] if not df_alerts.empty else df_alerts
-            st.dataframe(df_alerts.sort_values(by=["sede","fecha","nombre"]), use_container_width=True, height=300)
+            df_a = pd.DataFrame(alerts)
+            st.dataframe(df_a, use_container_width=True, height=320)
 
-            if st.button("📄 Descargar PDF — Alertas filtradas"):
-                # IMPORTANT: alerts entries might not have 'descanso' column; generate_pdf_report is robust now
-                pdf_path = generate_pdf_report(alerts)
-                with open(pdf_path, "rb") as f:
-                    st.download_button("Descargar PDF (Alertas filtradas)", f.read(), file_name="alertas_filtradas.pdf", mime="application/pdf")
+            if st.button("📄 Descargar PDF — Alertas filtradas", key="pdf_alertas_btn"):
+                pdf = generate_pdf_alerts(alerts)
+                with open(pdf, "rb") as f:
+                    st.download_button(
+                        "Descargar PDF",
+                        f.read(),
+                        file_name="alertas_filtradas.pdf",
+                        mime="application/pdf"
+                    )
 
-    # TAB GRAFICAS
+    # --- TAB GRÁFICAS ---
     with tab_graph:
         st.subheader("KPIs y Gráficas")
+
         kpis = compute_kpis(filtered)
 
         c1, c2, c3 = st.columns(3)
@@ -189,53 +223,59 @@ def admin_view(user):
         c2.metric("% descanso ≥ 45 min", f"{kpis['pct_descanso']:.1f}%")
         c3.metric("Alertas detectadas", kpis['alertas_count'])
 
-        st.markdown("---")
-
-        if kpis.get("fig_week"):
+        if kpis["fig_week"]:
             st.pyplot(kpis["fig_week"])
-        if kpis.get("pie_estado"):
+        if kpis["pie_estado"]:
             st.pyplot(kpis["pie_estado"])
 
-        if st.button("📄 Descargar PDF — General (KPIs + Gráficas)"):
-            pdf_path = generate_pdf_report(data)
-            with open(pdf_path, "rb") as f:
-                st.download_button("Descargar PDF general", f.read(), file_name="reporte_general.pdf", mime="application/pdf")
+        if st.button("📄 Descargar PDF — KPIs y gráficas", key="pdf_graph_btn"):
+            pdf = generate_pdf_charts(filtered)
+            with open(pdf, "rb") as f:
+                st.download_button(
+                    "Descargar PDF",
+                    f.read(),
+                    file_name="reporte_graficos.pdf",
+                    mime="application/pdf"
+                )
 
-    # TAB REPORTES POR SEDE
+    # --- TAB REPORTES POR SEDE ---
     with tab_report:
-        st.subheader("Reportes por sede (PDF)")
-        sedes_unicas = sorted(list({d.get("sede", "") for d in data if d.get("sede","")}))
+        st.subheader("Reportes por sede")
 
-        if not sedes_unicas:
-            st.info("No hay sedes registradas.")
-        else:
-            for s in sedes_unicas:
-                st.write(f"**{s}**")
-                if st.button(f"📄 Generar PDF — {s}", key=f"pdf_sede_{s}"):
-                    pdf_path = generate_pdf_report_by_sede(data, s)
-                    with open(pdf_path, "rb") as f:
-                        st.download_button(
-                            f"Descargar PDF — {s}",
-                            f.read(),
-                            file_name=f"reporte_{s}.pdf",
-                            mime="application/pdf"
-                        )
+        sedes_uni = sorted({d.get("sede","") for d in data})
+        for s in sedes_uni:
+            st.write(f"**{s}**")
+
+            if st.button(f"📄 Generar PDF — {s}", key=f"pdf_sede_{s}"):
+                pdf = generate_pdf_by_sede(data, s)
+                with open(pdf, "rb") as f:
+                    st.download_button(
+                        f"Descargar PDF {s}",
+                        f.read(),
+                        file_name=f"reporte_{s}.pdf",
+                        mime="application/pdf"
+                    )
 
     st.sidebar.markdown("---")
-    if st.sidebar.button("Cerrar sesión"):
+    if st.sidebar.button("Cerrar sesión", key="logout_admin"):
         logout()
 
-# ----------------- MAIN -----------------
+
+# ---------------------------------------------
+# MAIN
+# ---------------------------------------------
 def main():
-    if not st.session_state.logged or st.session_state.user is None:
+    if not st.session_state.logged:
         login_view()
     else:
         user = st.session_state.user
-        role = user.get("role", "empleado")
+        role = user.get("role","empleado")
+
         if role == "admin":
             admin_view(user)
         else:
             employee_view(user)
+
 
 if __name__ == "__main__":
     main()
